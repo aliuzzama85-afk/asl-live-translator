@@ -78,6 +78,6 @@ def translate(
         return_tensors="pt",
         truncation=True,
         max_length=config.MAX_SOURCE_LENGTH,
-    )
+    ).to(model.device)
     generated = model.generate(**inputs, max_length=max_length)
     return tokenizer.decode(generated[0], skip_special_tokens=True)
