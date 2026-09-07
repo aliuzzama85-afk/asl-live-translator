@@ -1,0 +1,16 @@
+# Core ML / data
+torch>=2.2
+transformers>=4.40
+datasets>=2.19
+
+# Pose/keypoint extraction (Stage 4)
+mediapipe>=0.10
+
+# Config / secrets
+python-dotenv>=1.0
+
+# Dev tooling
+ruff>=0.5
+black>=24.4
+pytest>=8.2
+pip-audit>=2.7
