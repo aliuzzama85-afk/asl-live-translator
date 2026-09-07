@@ -1,10 +1,16 @@
 # Core ML / data
+# transformers/datasets/accelerate/evaluate/sacrebleu are pinned exactly (not
+# >=) because gloss_model/train.py's behavior was verified against these exact
+# versions -- in particular, a Seq2SeqTrainer internal padding behavior (see
+# gloss_model/evaluate.py's decode_predictions docstring and PLAN.md) that
+# could plausibly differ across versions. On Kaggle, install these pinned
+# versions but do NOT force-reinstall torch -- see KAGGLE.md.
 torch>=2.2
-transformers>=4.40
-datasets>=2.19
-accelerate>=0.30
-evaluate>=0.4
-sacrebleu>=2.4
+transformers==5.16.1
+datasets==5.0.1
+accelerate==1.14.0
+evaluate==0.4.6
+sacrebleu==2.6.0
 
 # Pose/keypoint extraction (Stage 4)
 mediapipe>=0.10

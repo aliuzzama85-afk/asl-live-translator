@@ -10,6 +10,14 @@ from pathlib import Path
 
 GLOSS_MODEL_DIR = Path(__file__).resolve().parent
 
+# Kaggle mounts notebook inputs (e.g. this repo, uploaded as a Dataset/Notebook
+# attachment) read-only under /kaggle/input/...; only /kaggle/working is
+# writable there. A checkpoint dir defaulting to somewhere under this file's
+# own location would try to write into that read-only mount on Kaggle, so
+# detect it and default to the writable working directory instead. See
+# KAGGLE.md for the full hand-off procedure.
+_KAGGLE_WORKING_DIR = Path("/kaggle/working")
+
 # --- Dataset ---
 # Verified via a real `load_dataset()` call: single "train" split, 87,710 rows,
 # columns ["gloss", "text"], no empty rows. ~7.5% exact-duplicate (text, gloss)
@@ -34,7 +42,11 @@ TEST_FRACTION = 0.05
 
 # --- Model / training ---
 MODEL_NAME = "t5-small"
-CHECKPOINT_DIR = GLOSS_MODEL_DIR / "checkpoints"
+CHECKPOINT_DIR = (
+    _KAGGLE_WORKING_DIR / "gloss_model_checkpoints"
+    if _KAGGLE_WORKING_DIR.is_dir()
+    else GLOSS_MODEL_DIR / "checkpoints"
+)
 
 LEARNING_RATE = 3e-4
 WEIGHT_DECAY = 0.01
