@@ -84,3 +84,19 @@ design decision, a gotcha), update this file before ending the session.
 - **Compute split**: local dev machine is CPU-only. Real fine-tuning runs happen on
   Kaggle (GPU); local runs use `python -m gloss_model.train --quick` (small subset, 1
   epoch) purely to verify the pipeline end-to-end, not to produce a good model.
+- **Kaggle checkpoint-path fix**: `gloss_model/config.py`'s `CHECKPOINT_DIR` defaulted
+  to a path relative to the package's own file location, which breaks on Kaggle if this
+  repo is attached as a read-only notebook input (`/kaggle/input/...`). Fixed by
+  detecting `/kaggle/working` and defaulting there instead when present. See
+  [KAGGLE.md](KAGGLE.md).
+- **Two device-placement bugs found on the first real Kaggle GPU run**: both
+  `gloss_model/evaluate.py::run_spot_check` and `gloss_model/inference.py::translate`
+  tokenized inputs and called `model.generate()` without moving those inputs to
+  `model.device` first — crashes with `RuntimeError: Expected all tensors to be on
+  the same device` once the model is on `cuda:0` instead of CPU. Fixed in both by
+  chaining `.to(model.device)` onto the tokenizer output; both have mocked regression
+  tests that were verified to fail without the fix.
+- **First full Kaggle GPU training run succeeded** (4 epochs, full ~81k-row train
+  split): `test_token_f1=0.965`, `test_bleu=93.7`, `test_exact_match=0.80` — a strong
+  first result, well above the CPU `--quick` smoke-test numbers in PLAN.md's
+  "Implementation status". Stage 4 (pose library) can proceed.
