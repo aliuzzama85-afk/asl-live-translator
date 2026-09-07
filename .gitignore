@@ -21,6 +21,7 @@ data/raw/
 pose_library/data/
 *.mp4
 *.avi
+gloss_model/checkpoints/
 
 # OS
 .DS_Store

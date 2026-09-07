@@ -2,6 +2,9 @@
 torch>=2.2
 transformers>=4.40
 datasets>=2.19
+accelerate>=0.30
+evaluate>=0.4
+sacrebleu>=2.4
 
 # Pose/keypoint extraction (Stage 4)
 mediapipe>=0.10

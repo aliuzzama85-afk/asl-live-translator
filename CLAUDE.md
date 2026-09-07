@@ -66,3 +66,21 @@ silent frozen avatar.
 ## Session hygiene
 When you learn something during a session that should persist (a dataset quirk, a
 design decision, a gotcha), update this file before ending the session.
+
+## Known gotchas / decisions log
+- **ASLG-PC12 real size**: 87,710 rows (not the ~12k sometimes cited), single `train`
+  split, hub id `achrafothman/aslg_pc12`. Rule-generated, not human-translated — 1.7%
+  of rows are just the English sentence case-flipped, and it has zero fingerspelling/
+  classifier annotation. Treated as an acceptable quality ceiling for a first pass, not
+  a blocker. Full detail: [gloss_model/PLAN.md](gloss_model/PLAN.md).
+- **`Seq2SeqTrainer` + `predict_with_generate` gotcha**: when eval predictions are
+  generated sequences accumulated across many batches with variable lengths, the
+  Trainer pads mismatched-length predictions with `-100` (the label-ignore sentinel),
+  not the tokenizer's pad id. Any code decoding `EvalPrediction.predictions` must clean
+  `-100` out of *both* predictions and labels before `tokenizer.batch_decode`, or it can
+  crash with `OverflowError: can't convert negative int to unsigned` on larger eval
+  sets (it may not show up on a small validation split, only a bigger one). Fixed in
+  `gloss_model/evaluate.py::decode_predictions`.
+- **Compute split**: local dev machine is CPU-only. Real fine-tuning runs happen on
+  Kaggle (GPU); local runs use `python -m gloss_model.train --quick` (small subset, 1
+  epoch) purely to verify the pipeline end-to-end, not to produce a good model.
