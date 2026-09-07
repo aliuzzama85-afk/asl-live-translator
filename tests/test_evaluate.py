@@ -1,5 +1,7 @@
 """Tests for gloss_model.evaluate."""
 
+from unittest.mock import MagicMock
+
 import numpy as np
 import pytest
 from transformers import AutoTokenizer
@@ -114,3 +116,43 @@ def test_run_spot_check_returns_pairs_for_each_sentence():
     )
     assert [s for s, _ in results] == sentences
     assert all(isinstance(pred, str) for _, pred in results)
+
+
+def test_run_spot_check_moves_tokenizer_output_to_model_device():
+    # Regression test for a real crash seen on a GPU (Kaggle) run:
+    # "RuntimeError: Expected all tensors to be on the same device, but got
+    # index is on cpu, different from other tensors on cuda:0". The tokenizer
+    # output defaults to CPU regardless of where the model lives, so
+    # run_spot_check must explicitly move it to model.device before
+    # model.generate(). Mocked (no GPU needed) to assert BatchEncoding.to()
+    # is actually called with model.device.
+    fake_device = "meta"  # any device string; what matters is it's threaded through
+    fake_tensors = {
+        "input_ids": MagicMock(name="input_ids"),
+        "attention_mask": MagicMock(name="attention_mask"),
+    }
+
+    moved_encoding = MagicMock()
+    moved_encoding.keys.return_value = list(fake_tensors.keys())
+    moved_encoding.__getitem__.side_effect = fake_tensors.__getitem__
+
+    raw_encoding = MagicMock()
+    raw_encoding.to.return_value = moved_encoding
+
+    mock_tokenizer = MagicMock()
+    mock_tokenizer.return_value = raw_encoding
+    mock_tokenizer.batch_decode.return_value = ["GLOSS OUTPUT"]
+
+    mock_model = MagicMock()
+    mock_model.device = fake_device
+    mock_model.generate.return_value = MagicMock()
+
+    evaluate.run_spot_check(
+        mock_model, mock_tokenizer, sentences=["hello"], max_length=8
+    )
+
+    raw_encoding.to.assert_called_once_with(fake_device)
+    # generate() must be called with the *moved* encoding's tensors, not the raw one's.
+    _, generate_kwargs = mock_model.generate.call_args
+    assert generate_kwargs["input_ids"] is fake_tensors["input_ids"]
+    assert generate_kwargs["attention_mask"] is fake_tensors["attention_mask"]

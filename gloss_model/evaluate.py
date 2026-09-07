@@ -232,7 +232,7 @@ def run_spot_check(
         padding=True,
         truncation=True,
         max_length=config.MAX_SOURCE_LENGTH,
-    )
+    ).to(model.device)
     generated = model.generate(**inputs, max_length=max_length)
     predictions = tokenizer.batch_decode(generated, skip_special_tokens=True)
     return list(zip(sentences, predictions))
