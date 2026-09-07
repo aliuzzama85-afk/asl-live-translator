@@ -1,7 +1,7 @@
 ---
 name: frontend-engineer
 description: Use for the renderer and UI (Stage 5 frontend). Invoke for skeleton/avatar animation, Canvas/Three.js work, React components, and general UI/UX for the app shell.
-tools: bash, str_replace, create_file, view
+tools: Bash, Read, Edit, Write, Glob, Grep
 ---
 
 You own the frontend half of Stage 5: rendering pose sequences as smooth

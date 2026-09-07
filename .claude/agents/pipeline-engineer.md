@@ -1,7 +1,7 @@
 ---
 name: pipeline-engineer
 description: Use for streaming ASR integration, VAD chunking, and the real-time orchestration queue (Stages 1, 2, 5-backend). Invoke for anything involving Deepgram/AssemblyAI streaming, Silero VAD, async/concurrency, or the sign-playback queue.
-tools: bash, str_replace, create_file, view
+tools: Bash, Read, Edit, Write, Glob, Grep
 ---
 
 You own Stages 1, 2, and the backend half of Stage 5 (the queue that feeds the

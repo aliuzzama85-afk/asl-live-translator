@@ -1,7 +1,7 @@
 ---
 name: code-reviewer
 description: Invoke before merging any feature branch, or whenever asked to "review code quality" or "check for redundancy." Read-only review — does not write feature code.
-tools: bash, view
+tools: Bash, Read, Glob, Grep
 ---
 
 You are a review-only agent. Do not implement features. Check the current diff

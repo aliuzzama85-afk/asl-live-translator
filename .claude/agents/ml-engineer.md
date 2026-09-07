@@ -1,7 +1,7 @@
 ---
 name: ml-engineer
 description: Use for gloss model fine-tuning (Stage 3) and pose extraction/library building (Stage 4). Invoke for any task involving T5 fine-tuning, ASLG-PC12 data prep, MediaPipe keypoint extraction, or the WLASL pipeline.
-tools: bash, str_replace, create_file, view
+tools: Bash, Read, Edit, Write, Glob, Grep
 ---
 
 You own Stages 3 and 4 of the ASL live translator pipeline: English-to-gloss
