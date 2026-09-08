@@ -40,6 +40,13 @@ TRAIN_FRACTION = 0.90
 VAL_FRACTION = 0.05
 TEST_FRACTION = 0.05
 
+# --- Vocabulary-gap augmentation (see gloss_model/VOCAB_DIAGNOSIS.md) ---
+# Hand-written (text, gloss) pairs targeting words confirmed near-absent from
+# ASLG-PC12 (e.g. "bathroom": 0 occurrences, "coffee": 2). Mixed into the
+# TRAIN split only in data_prep.mix_in_augmentation -- validation/test stay
+# pure ASLG-PC12 so eval metrics remain comparable across runs.
+AUGMENTATION_DATA_PATH = GLOSS_MODEL_DIR / "data" / "vocab_augmentation.csv"
+
 # --- Model / training ---
 MODEL_NAME = "t5-small"
 CHECKPOINT_DIR = (
@@ -60,6 +67,19 @@ QUICK_MAX_TRAIN_SAMPLES = 500
 QUICK_MAX_EVAL_SAMPLES = 100
 QUICK_NUM_EPOCHS = 1
 QUICK_BATCH_SIZE = 8
+
+# Patch mode: a short continued-fine-tuning pass on top of an existing
+# checkpoint (--init-checkpoint), mixing in AUGMENTATION_DATA_PATH, to close a
+# specific vocabulary gap without a full retrain. Lower LR than a from-scratch
+# run, since the model has already converged and a targeted patch shouldn't
+# risk destabilizing everything it already learned.
+PATCH_NUM_EPOCHS = 2
+PATCH_LEARNING_RATE = 1e-4
+# The augmentation set (360 rows) is tiny next to the ~73k-row base train
+# split -- under 0.5% of it unrepeated, not enough signal for a model to
+# reliably pick up new vocabulary in only a couple of epochs. Repeating it
+# brings it to a few percent of the mixed train set instead.
+PATCH_AUGMENTATION_REPEAT = 20
 
 
 @dataclass(frozen=True)
@@ -90,4 +110,12 @@ class TrainingConfig:
             batch_size=QUICK_BATCH_SIZE,
             max_train_samples=QUICK_MAX_TRAIN_SAMPLES,
             max_eval_samples=QUICK_MAX_EVAL_SAMPLES,
+        )
+
+    @classmethod
+    def patch(cls) -> "TrainingConfig":
+        """Returns the config for a short vocabulary-patch fine-tuning run."""
+        return cls(
+            learning_rate=PATCH_LEARNING_RATE,
+            num_epochs=PATCH_NUM_EPOCHS,
         )

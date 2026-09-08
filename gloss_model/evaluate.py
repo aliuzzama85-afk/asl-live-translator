@@ -37,6 +37,30 @@ SPOT_CHECK_SENTENCES = [
     "Please turn off the lights when you leave.",
 ]
 
+# Held-out generalization check for --patch runs (see VOCAB_DIAGNOSIS.md):
+# these use the same target vocabulary as gloss_model/data/vocab_augmentation.csv
+# but in sentence structures verified NOT to appear anywhere in that file --
+# no shared verb phrases, question forms, or predicate patterns with any of
+# the augmented sentences for the same word. --patch repeats the 360
+# augmented rows 20x, which risks the model memorizing those specific
+# phrasings rather than genuinely learning the vocabulary (see the "why" in
+# config.PATCH_AUGMENTATION_REPEAT's docstring). If a patched model handles
+# these about as well as the augmented sentences themselves, that's
+# generalization; if it does well on the augmented phrasings but reverts to
+# wrong/garbled output here (e.g. the pre-patch "bathroom" -> "BEDROOM"
+# failure reappearing), that's memorization, not real vocabulary learning --
+# a sign --augmentation-repeat is too high relative to --patch's epoch count.
+VOCAB_GENERALIZATION_SENTENCES = [
+    "The apartment has two bathrooms and a small kitchen.",
+    "He always drinks his coffee black.",
+    "We canceled the trip because of the weather.",
+    "My roommate borrowed my keys and never gave them back.",
+    "The lights went out during the storm last night.",
+    "The nearest station just closed for renovations.",
+    "Skipping breakfast always makes me hungry by noon.",
+    "The store offers a discount only on weekends.",
+]
+
 # Minimal stopword list for the naive baseline -- not meant to be linguistically
 # complete, just enough to distinguish "did nothing" from "did something".
 _STOPWORDS = {

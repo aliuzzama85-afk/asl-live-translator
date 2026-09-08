@@ -5,7 +5,7 @@ See gloss_model/PLAN.md for the rationale behind each step.
 
 import logging
 
-from datasets import Dataset, DatasetDict, load_dataset
+from datasets import Dataset, DatasetDict, concatenate_datasets, load_dataset
 from transformers import PreTrainedTokenizerBase
 
 from gloss_model import config
@@ -89,6 +89,54 @@ def build_splits(
             "train": train_rest["train"],
             "validation": val_test["train"],
             "test": val_test["test"],
+        }
+    )
+
+
+def load_augmentation_dataset(path: str) -> Dataset:
+    """Loads a supplementary (text, gloss) CSV for mixing into training data.
+
+    Args:
+        path: Path to a CSV file with "text" and "gloss" columns.
+
+    Returns:
+        A Dataset with "text" and "gloss" string columns.
+    """
+    dataset = load_dataset("csv", data_files=path)["train"]
+    return dataset.select_columns(["text", "gloss"])
+
+
+def mix_in_augmentation(
+    splits: DatasetDict,
+    augmentation: Dataset,
+    repeat: int = 1,
+    seed: int = config.SEED,
+) -> DatasetDict:
+    """Mixes extra (text, gloss) rows into the training split only.
+
+    Validation and test are returned unchanged, so eval metrics stay
+    comparable to a run without augmentation.
+
+    Args:
+        splits: A pre-tokenization DatasetDict with "train"/"validation"/"test".
+        augmentation: Extra rows to add, with "text" and "gloss" columns.
+        repeat: How many times to repeat `augmentation` before mixing in. A
+            small targeted set can otherwise be diluted to near-zero effective
+            weight by a much larger base training split.
+        seed: Shuffle seed, so augmented rows aren't clustered at the end.
+
+    Returns:
+        A new DatasetDict with an augmented, reshuffled "train" split and the
+        original "validation"/"test" splits.
+    """
+    augmentation = augmentation.cast(splits["train"].features)
+    repeated = concatenate_datasets([augmentation] * repeat)
+    merged_train = concatenate_datasets([splits["train"], repeated]).shuffle(seed=seed)
+    return DatasetDict(
+        {
+            "train": merged_train,
+            "validation": splits["validation"],
+            "test": splits["test"],
         }
     )
 

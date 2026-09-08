@@ -1,0 +1,361 @@
+text,gloss
+My mother is a teacher .,X-MY MOTHER BE TEACHER .
+Is your mother home ?,BE X-YOU MOTHER HOME ?
+I do not live with my mother .,X-I DO DESC-NOT LIVE WITH X-MY MOTHER .
+My father works at the hospital .,X-MY FATHER WORK AT HOSPITAL .
+Where is your father ?,WHERE BE X-YOU FATHER ?
+He is not my father .,X-HE BE DESC-NOT X-MY FATHER .
+My sister is sick today .,X-MY SISTER BE DESC-SICK TODAY .
+Does your sister need help ?,DO X-YOU SISTER NEED HELP ?
+I have one sister .,X-I HAVE ONE SISTER .
+My brother is a doctor .,X-MY BROTHER BE DOCTOR .
+Is your brother coming tomorrow ?,BE X-YOU BROTHER COME TOMORROW ?
+I do not have a brother .,X-I DO DESC-NOT HAVE BROTHER .
+She is my friend .,X-SHE BE X-MY FRIEND .
+Are you friends with the teacher ?,BE X-YOU FRIEND WITH TEACHER ?
+I forgot to call my friend .,X-I FORGET TO CALL X-MY FRIEND .
+My family is coming this weekend .,X-MY FAMILY BE COME THIS WEEKEND .
+Where is your family ?,WHERE BE X-YOU FAMILY ?
+I miss my family .,X-I MISS X-MY FAMILY .
+The baby is sleeping .,BABY BE SLEEP .
+Is the baby sick ?,BE BABY DESC-SICK ?
+My sister has a new baby .,X-MY SISTER HAVE DESC-NEW BABY .
+My teacher is very good .,X-MY TEACHER BE DESC-VERY DESC-GOOD .
+Is she your teacher ?,BE X-SHE X-YOU TEACHER ?
+I do not understand my teacher .,X-I DO DESC-NOT UNDERSTAND X-MY TEACHER .
+I need to see a doctor .,X-I NEED TO SEE DOCTOR .
+Is the doctor here ?,BE DOCTOR DESC-HERE ?
+He is going to the doctor tomorrow .,X-HE BE GO TO DOCTOR TOMORROW .
+The nurse gave me medicine .,NURSE GIVE X-I MEDICINE .
+Is the nurse available ?,BE NURSE DESC-AVAILABLE ?
+I want to speak with the nurse .,X-I WANT TO SPEAK WITH NURSE .
+My neighbor is very friendly .,X-MY NEIGHBOR BE DESC-VERY DESC-FRIENDLY .
+Do you know your neighbor ?,DO X-YOU KNOW X-YOU NEIGHBOR ?
+I borrowed sugar from my neighbor .,X-I BORROW SUGAR FROM X-MY NEIGHBOR .
+I am hungry .,X-I BE DESC-HUNGRY .
+Are you hungry ?,BE X-YOU DESC-HUNGRY ?
+She is not hungry .,X-SHE BE DESC-NOT DESC-HUNGRY .
+I am thirsty .,X-I BE DESC-THIRSTY .
+Is he thirsty ?,BE X-HE DESC-THIRSTY ?
+We are very thirsty .,X-WE BE DESC-VERY DESC-THIRSTY .
+I am tired .,X-I BE DESC-TIRED .
+Are you tired today ?,BE X-YOU DESC-TIRED TODAY ?
+My mother is tired .,X-MY MOTHER BE DESC-TIRED .
+I feel sick .,X-I FEEL DESC-SICK .
+Is your brother sick ?,BE X-YOU BROTHER DESC-SICK ?
+She is not sick anymore .,X-SHE BE DESC-NOT DESC-SICK DESC-ANYMORE .
+I have pain in my back .,X-I HAVE PAIN IN X-MY BACK .
+Where is the pain ?,WHERE BE PAIN ?
+The pain is getting worse .,PAIN BE GET DESC-WORSE .
+My leg hurts .,X-MY LEG HURT .
+Does it hurt ?,DO X-IT HURT ?
+I hurt my hand .,X-I HURT X-MY HAND .
+I have a headache .,X-I HAVE HEADACHE .
+Do you have a headache ?,DO X-YOU HAVE HEADACHE ?
+My headache is not better .,X-MY HEADACHE BE DESC-NOT DESC-BETTER .
+I need medicine .,X-I NEED MEDICINE .
+Did you take your medicine ?,DO X-YOU TAKE X-YOU MEDICINE ?
+This medicine does not help .,THIS MEDICINE DO DESC-NOT HELP .
+I need to go to the hospital .,X-I NEED TO GO TO HOSPITAL .
+Where is the hospital ?,WHERE BE HOSPITAL ?
+She is not in the hospital anymore .,X-SHE BE DESC-NOT IN HOSPITAL DESC-ANYMORE .
+I am allergic to peanuts .,X-I BE DESC-ALLERGIC TO PEANUT .
+Are you allergic to medicine ?,BE X-YOU DESC-ALLERGIC TO MEDICINE ?
+My son is allergic to milk .,X-MY SON BE DESC-ALLERGIC TO MILK .
+I feel dizzy .,X-I FEEL DESC-DIZZY .
+Is she dizzy ?,BE X-SHE DESC-DIZZY ?
+I was dizzy this morning .,X-I BE DESC-DIZZY THIS MORNING .
+I want coffee .,X-I WANT COFFEE .
+She does not want coffee .,X-SHE DO DESC-NOT WANT COFFEE .
+Where can I buy coffee ?,WHERE CAN X-I BUY COFFEE ?
+I need water .,X-I NEED WATER .
+Can I have some water ?,CAN X-I HAVE SOME WATER ?
+The water is cold .,WATER BE DESC-COLD .
+I would like tea .,X-I WOULD LIKE TEA .
+Do you want tea or coffee ?,DO X-YOU WANT TEA OR COFFEE ?
+This tea is too hot .,THIS TEA BE DESC-TOO DESC-HOT .
+I ate breakfast this morning .,X-I EAT BREAKFAST THIS MORNING .
+Did you have breakfast ?,DO X-YOU HAVE BREAKFAST ?
+We are not having breakfast today .,X-WE BE DESC-NOT HAVE BREAKFAST TODAY .
+I am having lunch with my sister .,X-I BE HAVE LUNCH WITH X-MY SISTER .
+What time is lunch ?,WHAT TIME BE LUNCH ?
+I forgot my lunch .,X-I FORGET X-MY LUNCH .
+We are cooking dinner .,X-WE BE COOK DINNER .
+Is dinner ready ?,BE DINNER DESC-READY ?
+I do not want dinner .,X-I DO DESC-NOT WANT DINNER .
+I know a good restaurant .,X-I KNOW DESC-GOOD RESTAURANT .
+Where is the nearest restaurant ?,WHERE BE DESC-NEAREST RESTAURANT ?
+This restaurant is very expensive .,THIS RESTAURANT BE DESC-VERY DESC-EXPENSIVE .
+Can I see the menu ?,CAN X-I SEE MENU ?
+The menu does not have coffee .,MENU DO DESC-NOT HAVE COFFEE .
+I do not understand the menu .,X-I DO DESC-NOT UNDERSTAND MENU .
+I would like some bread .,X-I WOULD LIKE SOME BREAD .
+Is this bread fresh ?,BE THIS BREAD DESC-FRESH ?
+We ran out of bread .,X-WE RUN OUT BREAD .
+I eat fruit in the morning .,X-I EAT FRUIT IN MORNING .
+Do you like fruit ?,DO X-YOU LIKE FRUIT ?
+This fruit is not fresh .,THIS FRUIT BE DESC-NOT DESC-FRESH .
+I do not eat vegetables .,X-I DO DESC-NOT EAT VEGETABLE .
+Do you have fresh vegetables ?,DO X-YOU HAVE DESC-FRESH VEGETABLE ?
+This vegetable is cheap .,THIS VEGETABLE BE DESC-CHEAP .
+Where is the bathroom ?,WHERE BE BATHROOM ?
+The bathroom is upstairs .,BATHROOM BE DESC-UPSTAIRS .
+Can I use your bathroom ?,CAN X-I USE X-YOU BATHROOM ?
+I am cooking in the kitchen .,X-I BE COOK IN KITCHEN .
+Where is the kitchen ?,WHERE BE KITCHEN ?
+The kitchen is not clean .,KITCHEN BE DESC-NOT DESC-CLEAN .
+My bedroom is upstairs .,X-MY BEDROOM BE DESC-UPSTAIRS .
+Is this your bedroom ?,BE THIS X-YOU BEDROOM ?
+I need to clean my bedroom .,X-I NEED TO CLEAN X-MY BEDROOM .
+I forgot my keys .,X-I FORGET X-MY KEY .
+Can you help me find my keys ?,CAN X-YOU HELP X-I FIND X-MY KEY ?
+Where are my keys ?,WHERE BE X-MY KEY ?
+My phone battery is almost dead .,X-MY PHONE BATTERY BE DESC-ALMOST DESC-DEAD .
+Can I use your phone ?,CAN X-I USE X-YOU PHONE ?
+I forgot my phone at home .,X-I FORGET X-MY PHONE AT HOME .
+I lost my wallet .,X-I LOSE X-MY WALLET .
+Is this your wallet ?,BE THIS X-YOU WALLET ?
+My wallet is not here .,X-MY WALLET BE DESC-NOT DESC-HERE .
+Please turn off the lights .,PLEASE TURN OFF LIGHT .
+Are the lights on ?,BE LIGHT ON ?
+The lights are not working .,LIGHT BE DESC-NOT WORK .
+Please close the door .,PLEASE DESC-CLOSE DOOR .
+Is the door locked ?,BE DOOR DESC-LOCK ?
+The door is not open .,DOOR BE DESC-NOT DESC-OPEN .
+Please open the window .,PLEASE DESC-OPEN WINDOW .
+Is the window closed ?,BE WINDOW DESC-CLOSE ?
+The window is broken .,WINDOW BE BREAK .
+Is this chair taken ?,BE THIS CHAIR TAKE ?
+Please sit in this chair .,PLEASE SIT IN THIS CHAIR .
+I need another chair .,X-I NEED DESC-ANOTHER CHAIR .
+The keys are on the table .,KEY BE ON TABLE .
+Is this table free ?,BE THIS TABLE DESC-FREE ?
+We need a table for four .,X-WE NEED TABLE FOR FOUR .
+Where is the mirror ?,WHERE BE MIRROR ?
+The mirror is broken .,MIRROR BE BREAK .
+I do not have a mirror .,X-I DO DESC-NOT HAVE MIRROR .
+I need to go to the store .,X-I NEED TO GO TO STORE .
+What time does the store close ?,WHAT TIME DO STORE DESC-CLOSE ?
+The store is not open today .,STORE BE DESC-NOT DESC-OPEN TODAY .
+How do I get to the train station ?,HOW DO X-I GET TO TRAIN STATION ?
+Where is the nearest station ?,WHERE BE DESC-NEAREST STATION ?
+The station is very far .,STATION BE DESC-VERY DESC-FAR .
+I need to go to the airport .,X-I NEED TO GO TO AIRPORT .
+How far is the airport ?,HOW DESC-FAR BE AIRPORT ?
+Is the airport open ?,BE AIRPORT DESC-OPEN ?
+My baby goes to school .,X-MY BABY GO TO SCHOOL .
+Is the school open today ?,BE SCHOOL DESC-OPEN TODAY ?
+Where is the school ?,WHERE BE SCHOOL ?
+We go to church on the weekend .,X-WE GO TO CHURCH ON WEEKEND .
+Where is the church ?,WHERE BE CHURCH ?
+Is the church far from here ?,BE CHURCH DESC-FAR FROM DESC-HERE ?
+I want to walk in the park .,X-I WANT TO WALK IN PARK .
+Where is the nearest park ?,WHERE BE DESC-NEAREST PARK ?
+The park is not far .,PARK BE DESC-NOT DESC-FAR .
+Where is the parking ?,WHERE BE PARKING ?
+Is there parking here ?,BE PARKING DESC-HERE ?
+The parking is very expensive .,PARKING BE DESC-VERY DESC-EXPENSIVE .
+What street do you live on ?,WHAT STREET DO X-YOU LIVE ON ?
+The store is on this street .,STORE BE ON THIS STREET .
+I do not know this street .,X-I DO DESC-NOT KNOW THIS STREET .
+Where is the hotel ?,WHERE BE HOTEL ?
+Is the hotel expensive ?,BE HOTEL DESC-EXPENSIVE ?
+We need a hotel for tonight .,X-WE NEED HOTEL FOR DESC-TONIGHT .
+I need to go to the pharmacy .,X-I NEED TO GO TO PHARMACY .
+Is the pharmacy open ?,BE PHARMACY DESC-OPEN ?
+Where is the nearest pharmacy ?,WHERE BE DESC-NEAREST PHARMACY ?
+I need to go to the bank .,X-I NEED TO GO TO BANK .
+What time does the bank close ?,WHAT TIME DO BANK DESC-CLOSE ?
+Is the bank open on the weekend ?,BE BANK DESC-OPEN ON WEEKEND ?
+I am tired today .,X-I BE DESC-TIRED TODAY .
+Is the doctor here today ?,BE DOCTOR DESC-HERE TODAY ?
+We are not working today .,X-WE BE DESC-NOT WORK TODAY .
+I have an appointment tomorrow .,X-I HAVE APPOINTMENT TOMORROW .
+Is the store open tomorrow ?,BE STORE DESC-OPEN TOMORROW ?
+We will go tomorrow .,X-WE WILL GO TOMORROW .
+I was sick yesterday .,X-I BE DESC-SICK YESTERDAY .
+Did you see the doctor yesterday ?,DO X-YOU SEE DOCTOR YESTERDAY ?
+The store was closed yesterday .,STORE BE DESC-CLOSE YESTERDAY .
+I have an appointment this morning .,X-I HAVE APPOINTMENT THIS MORNING .
+Are you free this morning ?,BE X-YOU DESC-FREE THIS MORNING ?
+I drink tea in the morning .,X-I DRINK TEA IN MORNING .
+I have an appointment this afternoon .,X-I HAVE APPOINTMENT THIS AFTERNOON .
+Are you free this afternoon ?,BE X-YOU DESC-FREE THIS AFTERNOON ?
+We will go to the park this afternoon .,X-WE WILL GO TO PARK THIS AFTERNOON .
+I am cooking dinner this evening .,X-I BE COOK DINNER THIS EVENING .
+Are you free this evening ?,BE X-YOU DESC-FREE THIS EVENING ?
+We are going to a restaurant this evening .,X-WE BE GO TO RESTAURANT THIS EVENING .
+We are not working this weekend .,X-WE BE DESC-NOT WORK THIS WEEKEND .
+What are you doing this weekend ?,WHAT BE X-YOU DO THIS WEEKEND ?
+The pharmacy is closed on the weekend .,PHARMACY BE DESC-CLOSE ON WEEKEND .
+I have been waiting for an hour .,X-I HAVE BE WAIT FOR HOUR .
+The appointment is in one hour .,APPOINTMENT BE IN ONE HOUR .
+How many hours does it take ?,HOW DESC-MANY HOUR DO X-IT TAKE ?
+"Wait one minute , please .","WAIT ONE MINUTE , PLEASE ."
+I will be ready in a minute .,X-I WILL BE DESC-READY IN MINUTE .
+The doctor will see you in a few minutes .,DOCTOR WILL SEE X-YOU IN DESC-FEW MINUTE .
+I am late for my appointment .,X-I BE DESC-LATE FOR X-MY APPOINTMENT .
+Are you late again ?,BE X-YOU DESC-LATE DESC-AGAIN ?
+The train is not late today .,TRAIN BE DESC-NOT DESC-LATE TODAY .
+I woke up early this morning .,X-I WAKE DESC-UP DESC-EARLY THIS MORNING .
+Can we go early ?,CAN X-WE GO DESC-EARLY ?
+The store opens early .,STORE DESC-OPEN DESC-EARLY .
+I have an appointment with the doctor .,X-I HAVE APPOINTMENT WITH DOCTOR .
+Do you have an appointment ?,DO X-YOU HAVE APPOINTMENT ?
+I need to change my appointment .,X-I NEED TO CHANGE X-MY APPOINTMENT .
+The weather is very cold today .,WEATHER BE DESC-VERY DESC-COLD TODAY .
+Is the weather good tomorrow ?,BE WEATHER DESC-GOOD TOMORROW ?
+I do not like this weather .,X-I DO DESC-NOT LIKE THIS WEATHER .
+It is going to rain today .,X-IT BE GO TO RAIN TODAY .
+Is it raining outside ?,BE X-IT RAIN DESC-OUTSIDE ?
+I forgot my umbrella and it is raining .,X-I FORGET X-MY UMBRELLA AND X-IT BE RAIN .
+The sun is very hot today .,SUN BE DESC-VERY DESC-HOT TODAY .
+Is the sun out ?,BE SUN OUT ?
+I like the sun in the morning .,X-I LIKE SUN IN MORNING .
+I am cold .,X-I BE DESC-COLD .
+Is it cold outside ?,BE X-IT DESC-COLD DESC-OUTSIDE ?
+The water is too cold .,WATER BE DESC-TOO DESC-COLD .
+I am hot .,X-I BE DESC-HOT .
+Is your coffee too hot ?,BE X-YOU COFFEE DESC-TOO DESC-HOT ?
+It is very hot today .,X-IT BE DESC-VERY DESC-HOT TODAY .
+It is going to snow tomorrow .,X-IT BE GO TO SNOW TOMORROW .
+Is there snow outside ?,BE SNOW DESC-OUTSIDE ?
+I do not like snow .,X-I DO DESC-NOT LIKE SNOW .
+The wind is very strong today .,WIND BE DESC-VERY DESC-STRONG TODAY .
+Is it windy outside ?,BE X-IT DESC-WINDY DESC-OUTSIDE ?
+I do not like wind .,X-I DO DESC-NOT LIKE WIND .
+It is cloudy today .,X-IT BE DESC-CLOUDY TODAY .
+Will it be cloudy tomorrow ?,WILL X-IT BE DESC-CLOUDY TOMORROW ?
+The sky is not cloudy .,SKY BE DESC-NOT DESC-CLOUDY .
+I forgot my umbrella .,X-I FORGET X-MY UMBRELLA .
+Do you have an umbrella ?,DO X-YOU HAVE UMBRELLA ?
+I need an umbrella today .,X-I NEED UMBRELLA TODAY .
+I am happy today .,X-I BE DESC-HAPPY TODAY .
+Are you happy with the menu ?,BE X-YOU DESC-HAPPY WITH MENU ?
+She is not happy .,X-SHE BE DESC-NOT DESC-HAPPY .
+I am sad today .,X-I BE DESC-SAD TODAY .
+Why are you sad ?,WHY BE X-YOU DESC-SAD ?
+My friend is sad .,X-MY FRIEND BE DESC-SAD .
+He is angry with me .,X-HE BE DESC-ANGRY WITH X-I .
+Are you angry ?,BE X-YOU DESC-ANGRY ?
+I am not angry anymore .,X-I BE DESC-NOT DESC-ANGRY DESC-ANYMORE .
+I am scared of the doctor .,X-I BE DESC-SCARED DOCTOR .
+Is your baby scared ?,BE X-YOU BABY DESC-SCARED ?
+Do not be scared .,DO DESC-NOT BE DESC-SCARED .
+I am worried about my father .,X-I BE DESC-WORRIED ABOUT X-MY FATHER .
+Are you worried about the appointment ?,BE X-YOU DESC-WORRIED ABOUT APPOINTMENT ?
+She is not worried .,X-SHE BE DESC-NOT DESC-WORRIED .
+I am excited about the party .,X-I BE DESC-EXCITED ABOUT PARTY .
+Are you excited ?,BE X-YOU DESC-EXCITED ?
+My family is excited about the weekend .,X-MY FAMILY BE DESC-EXCITED ABOUT WEEKEND .
+I am confused about the menu .,X-I BE DESC-CONFUSED ABOUT MENU .
+Are you confused ?,BE X-YOU DESC-CONFUSED ?
+She is not confused anymore .,X-SHE BE DESC-NOT DESC-CONFUSED DESC-ANYMORE .
+I am embarrassed .,X-I BE DESC-EMBARRASSED .
+Is he embarrassed ?,BE X-HE DESC-EMBARRASSED ?
+Do not be embarrassed .,DO DESC-NOT BE DESC-EMBARRASSED .
+I am proud of my sister .,X-I BE DESC-PROUD X-MY SISTER .
+Are you proud of your family ?,BE X-YOU DESC-PROUD X-YOU FAMILY ?
+My father is very proud .,X-MY FATHER BE DESC-VERY DESC-PROUD .
+Can you help me ?,CAN X-YOU HELP X-I ?
+I need help .,X-I NEED HELP .
+She did not help me .,X-SHE DO DESC-NOT HELP X-I .
+Please wait here .,PLEASE WAIT DESC-HERE .
+How long do I need to wait ?,HOW DESC-LONG DO X-I NEED TO WAIT ?
+We are still waiting .,X-WE BE DESC-STILL WAIT .
+Can you help me find my wallet ?,CAN X-YOU HELP X-I FIND X-MY WALLET ?
+I cannot find my keys .,X-I CAN DESC-NOT FIND X-MY KEY .
+Did you find the store ?,DO X-YOU FIND STORE ?
+Please do not forget your appointment .,PLEASE DO DESC-NOT FORGET X-YOU APPOINTMENT .
+I always forget my umbrella .,X-I DESC-ALWAYS FORGET X-MY UMBRELLA .
+Did you forget something ?,DO X-YOU FORGET SOMETHING ?
+I do not remember .,X-I DO DESC-NOT REMEMBER .
+Do you remember my sister ?,DO X-YOU REMEMBER X-MY SISTER ?
+Please remember to close the door .,PLEASE REMEMBER TO DESC-CLOSE DOOR .
+Can I borrow your phone ?,CAN X-I BORROW X-YOU PHONE ?
+I borrowed money from my friend .,X-I BORROW MONEY FROM X-MY FRIEND .
+She does not want to borrow money .,X-SHE DO DESC-NOT WANT TO BORROW MONEY .
+Can you lend me your umbrella ?,CAN X-YOU LEND X-I X-YOU UMBRELLA ?
+I do not want to lend my car .,X-I DO DESC-NOT WANT TO LEND X-MY CAR .
+Will you lend me some money ?,WILL X-YOU LEND X-I SOME MONEY ?
+Can you fix my phone ?,CAN X-YOU FIX X-MY PHONE ?
+The window is broken and I need to fix it .,WINDOW BE BREAK AND X-I NEED TO FIX X-IT .
+Did you fix the door ?,DO X-YOU FIX DOOR ?
+Please do not break the chair .,PLEASE DO DESC-NOT BREAK CHAIR .
+I broke my phone .,X-I BREAK X-MY PHONE .
+Did you break the window ?,DO X-YOU BREAK WINDOW ?
+I need to clean the kitchen .,X-I NEED TO CLEAN KITCHEN .
+Is the bathroom clean ?,BE BATHROOM DESC-CLEAN ?
+She did not clean her room .,X-SHE DO DESC-NOT CLEAN X-SHE ROOM .
+I am cooking dinner .,X-I BE COOK DINNER .
+Do you know how to cook ?,DO X-YOU KNOW HOW TO COOK ?
+My mother cooked breakfast .,X-MY MOTHER COOK BREAKFAST .
+Can you drive me to the airport ?,CAN X-YOU DRIVE X-I TO AIRPORT ?
+I do not want to drive today .,X-I DO DESC-NOT WANT TO DRIVE TODAY .
+She drives to school .,X-SHE DRIVE TO SCHOOL .
+I like to walk in the park .,X-I LIKE TO WALK IN PARK .
+Can we walk to the store ?,CAN X-WE WALK TO STORE ?
+It is too far to walk .,X-IT BE DESC-TOO DESC-FAR TO WALK .
+I did not sleep well .,X-I DO DESC-NOT SLEEP DESC-WELL .
+Did you sleep well ?,DO X-YOU SLEEP DESC-WELL ?
+I need to sleep .,X-I NEED TO SLEEP .
+I woke up early .,X-I WAKE DESC-UP DESC-EARLY .
+Can you wake me up tomorrow ?,CAN X-YOU WAKE X-I DESC-UP TOMORROW ?
+The baby woke up crying .,BABY WAKE DESC-UP CRY .
+Please help me .,PLEASE HELP X-I .
+"Can you close the door , please ?","CAN X-YOU DESC-CLOSE DOOR , PLEASE ?"
+Please wait one minute .,PLEASE WAIT ONE MINUTE .
+Thank you for your help .,THANK X-YOU FOR X-YOU HELP .
+Thank you very much .,THANK X-YOU DESC-VERY DESC-MUCH .
+"Thank you , I am not hungry .","THANK X-YOU , X-I BE DESC-NOT DESC-HUNGRY ."
+I am sorry I am late .,X-I BE DESC-SORRY X-I BE DESC-LATE .
+"Sorry , I forgot .","DESC-SORRY , X-I FORGET ."
+I am sorry for the confusion .,X-I BE DESC-SORRY FOR CONFUSION .
+"Excuse me , where is the bathroom ?","EXCUSE X-I , WHERE BE BATHROOM ?"
+"Excuse me , is this seat taken ?","EXCUSE X-I , BE THIS SEAT TAKE ?"
+"Excuse me , can you help me ?","EXCUSE X-I , CAN X-YOU HELP X-I ?"
+How much is this ?,HOW DESC-MUCH BE THIS ?
+How much does the menu cost ?,HOW DESC-MUCH DO MENU COST ?
+How much money do you need ?,HOW DESC-MUCH MONEY DO X-YOU NEED ?
+How far is the hospital ?,HOW DESC-FAR BE HOSPITAL ?
+How far is the airport from here ?,HOW DESC-FAR BE AIRPORT FROM DESC-HERE ?
+How far do we need to walk ?,HOW DESC-FAR DO X-WE NEED TO WALK ?
+What time is the appointment ?,WHAT TIME BE APPOINTMENT ?
+What time does the bank open ?,WHAT TIME DO BANK DESC-OPEN ?
+What time will you be home ?,WHAT TIME WILL X-YOU BE HOME ?
+Where is the pharmacy ?,WHERE BE PHARMACY ?
+Where are you going ?,WHERE BE X-YOU GO ?
+I do not know where the station is .,X-I DO DESC-NOT KNOW WHERE STATION BE .
+Is this seat taken ?,BE THIS SEAT TAKE ?
+Can I have this seat ?,CAN X-I HAVE THIS SEAT ?
+The seat is not taken .,SEAT BE DESC-NOT TAKE .
+Do you have a reservation ?,DO X-YOU HAVE RESERVATION ?
+I need to make a reservation .,X-I NEED TO MAKE RESERVATION .
+I do not have a reservation .,X-I DO DESC-NOT HAVE RESERVATION .
+I do not have money .,X-I DO DESC-NOT HAVE MONEY .
+Can I borrow some money ?,CAN X-I BORROW SOME MONEY ?
+Where does the money go ?,WHERE DO MONEY GO ?
+What is the price ?,WHAT BE PRICE ?
+The price is too high .,PRICE BE DESC-TOO DESC-HIGH .
+Is the price negotiable ?,BE PRICE DESC-NEGOTIABLE ?
+This hotel is too expensive .,THIS HOTEL BE DESC-TOO DESC-EXPENSIVE .
+Is this expensive ?,BE THIS DESC-EXPENSIVE ?
+The medicine is not expensive .,MEDICINE BE DESC-NOT DESC-EXPENSIVE .
+This store is cheap .,STORE BE DESC-CHEAP .
+Is there a cheap hotel near here ?,BE DESC-CHEAP HOTEL DESC-NEAR DESC-HERE ?
+The vegetables here are cheap .,VEGETABLE DESC-HERE BE DESC-CHEAP .
+Do you accept cash ?,DO X-YOU ACCEPT CASH ?
+I only have cash .,X-I DESC-ONLY HAVE CASH .
+Can I pay with cash ?,CAN X-I PAY WITH CASH ?
+Can I pay with a card ?,CAN X-I PAY WITH CARD ?
+I do not have my card .,X-I DO DESC-NOT HAVE X-MY CARD .
+Do you accept card ?,DO X-YOU ACCEPT CARD ?
+Can I have a receipt ?,CAN X-I HAVE RECEIPT ?
+I lost my receipt .,X-I LOSE X-MY RECEIPT .
+Do you need the receipt ?,DO X-YOU NEED RECEIPT ?
+Is there a discount ?,BE DISCOUNT ?
+Do you have a student discount ?,DO X-YOU HAVE STUDENT DISCOUNT ?
+I did not get a discount .,X-I DO DESC-NOT GET DISCOUNT .
+Can I get change for this ?,CAN X-I GET CHANGE FOR THIS ?
+I do not have change .,X-I DO DESC-NOT HAVE CHANGE .
+Keep the change .,KEEP CHANGE .
