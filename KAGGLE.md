@@ -123,39 +123,53 @@ working-tree-only files.
 
 The checkpoint itself needs a **second** Kaggle Dataset input, since
 `gloss_model/checkpoints/` is gitignored (242MB+ of weights, never part of
-the source archive):
+the source archive). `--init-checkpoint` only *reads* from this path (it's
+never written to), so unlike the source dataset it doesn't need copying into
+`/kaggle/working` — it can be read straight from the read-only
+`/kaggle/input` mount.
 
-1. From the repo root: `cd gloss_model && zip -r ../checkpoint-v1.zip checkpoints && cd ..`
-   (or upload the `gloss_model/checkpoints/` folder directly — Kaggle's
-   dataset uploader accepts folders, not just zips).
-2. On kaggle.com: **Add Data** → **New Dataset** → upload it → name it (e.g.
-   `asl-gloss-checkpoint-v1`) → create.
+Only the **top-level** files matter — `model.safetensors`, `config.json`,
+`generation_config.json`, `tokenizer.json`, `tokenizer_config.json`,
+`training_args.bin` (~230MB total). Skip any `checkpoint-<step>/`
+subdirectories: those are `save_strategy="epoch"` intermediate saves that
+each carry a full Adam `optimizer.pt` (~2x model size, meant for resuming an
+*interrupted* run) — dead weight for `--init-checkpoint`, which never reads
+them, and they'll roughly 7x the upload for nothing.
+
+1. From the repo root (PowerShell): zip just the top-level files, not the
+   whole `checkpoints/` tree —
+   `Compress-Archive -Path (Get-ChildItem gloss_model\checkpoints -File).FullName -DestinationPath checkpoint-v1.zip`
+   (on a system with `zip`: `cd gloss_model/checkpoints && zip ../../checkpoint-v1.zip *.json *.safetensors *.bin && cd ../..`).
+   This produces a zip with those files at its root — no wrapping folder.
+2. On kaggle.com: **Add Data** → **New Dataset** → upload `checkpoint-v1.zip`
+   → name it (e.g. `asl-gloss-checkpoint-v1`) → create.
 3. In the notebook, **Add Input** and attach it alongside
-   `asl-live-translator-src`. It mounts read-only at
-   `/kaggle/input/asl-gloss-checkpoint-v1/`.
+   `asl-live-translator-src`. Because the zip had no wrapping folder, it
+   mounts read-only with the files directly at
+   `/kaggle/input/asl-gloss-checkpoint-v1/` (e.g.
+   `/kaggle/input/asl-gloss-checkpoint-v1/model.safetensors`) — not nested
+   under an extra `checkpoints/` or `checkpoint-v1/` subfolder. If you zip it
+   a different way and it does end up nested, adjust the `--init-checkpoint`
+   path in Section 7.3 accordingly; run `!ls /kaggle/input/asl-gloss-checkpoint-v1/`
+   to check.
 
 ### 7.2 Setup cell (patch variant)
 
-Same package installs as Section 3, plus copying the checkpoint into
-`/kaggle/working` alongside the source:
+Same package installs as Section 3, plus copying the *source* into
+`/kaggle/working` as before. The checkpoint input does **not** need copying:
 
 ```bash
 !cp -r /kaggle/input/asl-live-translator-src/gloss_model /kaggle/working/
-!cp -r /kaggle/input/asl-gloss-checkpoint-v1/checkpoints /kaggle/working/gloss_model/init_checkpoint
 %cd /kaggle/working
 
 !pip install -q "transformers==5.16.1" "datasets==5.0.1" "accelerate==1.14.0" \
     "evaluate==0.4.6" "sacrebleu==2.6.0"
 ```
 
-If the second `cp` fails, run `!ls /kaggle/input/asl-gloss-checkpoint-v1/`
-first — Kaggle's zip upload sometimes nests an extra folder level, so the
-real path might be `.../asl-gloss-checkpoint-v1/checkpoints/checkpoints`.
-
 ### 7.3 Training command (patch variant)
 
 ```bash
-!python -m gloss_model.train --patch --init-checkpoint /kaggle/working/gloss_model/init_checkpoint
+!python -m gloss_model.train --patch --init-checkpoint /kaggle/input/asl-gloss-checkpoint-v1
 ```
 
 This uses `TrainingConfig.patch()` (`gloss_model/config.py`): 2 epochs,
