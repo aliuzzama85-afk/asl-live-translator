@@ -259,3 +259,64 @@ three are also logged in `CLAUDE.md`'s "Known gotchas / decisions log".
   Kaggle's preinstalled CUDA-enabled build).
 - **Git**: local repo only, no remote. Latest commit at the time of writing is
   `4750dd0` — run `git log --oneline` for the current head.
+
+---
+
+## 8. Vocabulary patch results and generation-length finding (2026-09-09)
+
+Since Section 5/6 above were written, the vocabulary-gap patch (see
+`gloss_model/VOCAB_DIAGNOSIS.md`) was built, reviewed, and run on Kaggle via
+`train.py --patch`. **It succeeded and improved on the original run**:
+`test_token_f1=0.970` (was 0.965), `test_bleu=94.7` (was 93.7),
+`test_exact_match=0.835` (was 0.80). The generalization check
+(`evaluate.VOCAB_GENERALIZATION_SENTENCES`) showed real vocabulary
+generalization on most held-out novel-structure sentences, not memorization
+of the repeated augmented phrasings. This doc's Sections 1/3/5/6 above
+predate this and are now stale on that point — not rewritten here, since
+that wasn't asked for this session; treat Section 8 as the current word on
+the patch/checkpoint status until someone reconciles them.
+
+Two things came out of reviewing that run's output:
+
+1. **A real, corpus-wide `max_length` miscalibration, bigger than one bad
+   spot-check line.** Two generalization-check outputs looked broken: one
+   garbled ("Skipping..." → "SPIPP...") and one cut off mid-sentence
+   ("...gave them back." → "...GIVE X-"). Investigated by actually tokenizing
+   with the real T5 tokenizer rather than assuming:
+   - The cutoff one is a genuine `max_length=32` truncation. A plausible
+     correct gloss for that sentence tokenizes to **40 subword tokens** —
+     `MAX_TARGET_LENGTH=32` (`gloss_model/config.py`) cuts it off exactly
+     where the bad output stops.
+   - This isn't specific to that one sentence. `PLAN.md`'s original p99
+     figures (21 text / 20 gloss) that justified `MAX_SOURCE_LENGTH`/
+     `MAX_TARGET_LENGTH=32` were computed by **whitespace word-splitting**,
+     never checked against actual T5 subword tokenization. Doing that check
+     properly on the real training split: source tokens (with task prefix)
+     have p50/p90/p99/max = 26/32/40/76, **9.75% over 32**; gloss target
+     tokens have p50/p90/p99/max = **36/51/65/129, with 59.20% of all
+     training targets exceeding 32 tokens** and being silently truncated by
+     `truncation=True` in `data_prep.preprocess()`. This has been true since
+     the very first training run (the CPU `--quick` smoke test and the
+     original full Kaggle run both trained under this same silent
+     truncation) — it isn't something the patch introduced.
+   - Root cause: the custom `DESC-`/`X-` gloss notation isn't in T5's
+     pretrained vocabulary, so SentencePiece fragments each occurrence into
+     several subword pieces (`DESC-NEVER`, `DESC-BACK`, etc. each cost 3+
+     tokens, not 1) — a sentence with several such tokens blows well past a
+     word-count-based length estimate.
+   - The other bad output ("SPIPP") is **not** length-related — truncation
+     only cuts off the end of a sequence, and this garbling is at the start.
+     See point 2 below; it's the same category of issue as "apartment."
+   - **No code or config changed for this** — the user asked only to
+     investigate, not fix. Whoever picks this up next should decide whether
+     to raise `MAX_SOURCE_LENGTH`/`MAX_TARGET_LENGTH` (e.g. to 48 or 64,
+     re-checked against real subword-token percentiles, not word counts) and
+     retrain, given how much of the corpus's supervision signal has been
+     silently cut short.
+2. **"apartment" → "APPEAL" and "skip"/"skipping" → "SPIPP" are known,
+   expected vocabulary gaps, not bugs.** Both words are essentially absent
+   from the real corpus (`apartment`=2, `apartments`=1, `skip`=1,
+   `skipping`=0, `skipped`=0 occurrences) and were never part of the 121-word
+   augmentation list. This confirms the vocabulary gap documented in
+   `VOCAB_DIAGNOSIS.md` is broader than the specific words patched — expected
+   and already understood, not a new problem. No action needed right now.

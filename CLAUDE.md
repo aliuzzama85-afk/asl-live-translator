@@ -100,3 +100,19 @@ design decision, a gotcha), update this file before ending the session.
   split): `test_token_f1=0.965`, `test_bleu=93.7`, `test_exact_match=0.80` — a strong
   first result, well above the CPU `--quick` smoke-test numbers in PLAN.md's
   "Implementation status". Stage 4 (pose library) can proceed.
+- **`MAX_SOURCE_LENGTH`/`MAX_TARGET_LENGTH=32` were validated against whitespace
+  word counts, never real T5 subword tokens.** The custom `DESC-`/`X-` gloss
+  notation isn't in T5's vocabulary, so it fragments into several subword pieces
+  per token — actual gloss-target token counts are p50/p90/p99 = 36/51/65 (not
+  12/17/20 as word counts suggested), and **59% of all training targets exceed
+  32 tokens and get silently truncated** by `truncation=True` in
+  `data_prep.preprocess()`. True since the very first training run, not
+  introduced by the vocab patch. Not yet fixed — see `PROJECT_STATUS.md` Section 8
+  for the full investigation and what raising the limit would require (retraining).
+- **A vocabulary-gap patch (`train.py --patch`, see `gloss_model/VOCAB_DIAGNOSIS.md`)
+  ran on Kaggle and improved all metrics**: `test_token_f1=0.970`,
+  `test_bleu=94.7`, `test_exact_match=0.835`, with the generalization check
+  confirming real vocabulary learning, not memorization of the repeated
+  augmented sentences. Words outside both the corpus and the 121-word patch
+  list (e.g. "apartment", "skip") still produce garbled output — expected,
+  not a bug; the gap is broader than what was patched.
