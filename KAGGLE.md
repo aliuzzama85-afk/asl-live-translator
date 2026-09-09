@@ -3,8 +3,9 @@
 Hand-off procedure for running the real (non-`--quick`) `gloss_model` training
 run on Kaggle GPU compute. The pipeline itself was verified end-to-end locally
 on CPU with `--quick` — this only covers getting the same code running there.
-No training logic or hyperparameters are changed for this; see `gloss_model/PLAN.md`
-for the pipeline design itself.
+See `gloss_model/PLAN.md` for the pipeline design itself, and
+`PROJECT_STATUS.md` Section 8 for why `MAX_SOURCE_LENGTH`/`MAX_TARGET_LENGTH`
+and the default augmentation behavior changed since this file was first written.
 
 Sections 1-6 below cover a full run from `t5-small`. **Section 7 covers patch
 runs** — continuing fine-tuning from an existing checkpoint with a small
@@ -66,27 +67,55 @@ resolution in `gloss_model/config.py` land in the right place — see Section 5.
 
 ## 4. Training command
 
-Full run, no `--quick` (that flag is for the local CPU pipeline-sanity check only):
+Full run, no `--quick` (that flag is for the local CPU pipeline-sanity check only).
+For this run specifically (the combined length + vocabulary fix, replacing
+the original v1 model), pass an explicit `--output-dir` rather than relying
+on the default — the default resolves to the same directory name v1 used
+(`gloss_model_checkpoints`), which isn't a collision risk on Kaggle's own
+fresh session but throws away the "clearly separate location" guarantee once
+you go to download and compare it locally against v1:
 
 ```bash
-!python -m gloss_model.train
+!python -m gloss_model.train --output-dir /kaggle/working/gloss_model_checkpoints_v2
 ```
 
-To override an epoch count or batch size for this run without editing code,
-`train.py` accepts `--epochs`, `--batch-size`, `--max-train-samples`, and
-`--max-eval-samples`, e.g. `!python -m gloss_model.train --epochs 6`. Leave
-these unset to use the defaults in `gloss_model/config.py`.
+This bare command now does two things beyond the original design:
+- Trains with `MAX_SOURCE_LENGTH=48` / `MAX_TARGET_LENGTH=80` (up from 32/32
+  — the original values were validated against whitespace word counts, not
+  real T5 subword tokens, and silently truncated 59% of training targets; see
+  `PROJECT_STATUS.md` Section 8). Expect eval/spot-check generation to take
+  noticeably longer than before — benchmarked at roughly 3x the per-sentence
+  cost in the worst case (forced full-length generation on CPU); real average
+  cost will be lower since most sentences still stop well short of 80 tokens.
+- Mixes in `gloss_model/data/vocab_augmentation.csv` **by default**
+  (`--augmentation-data`'s default), repeated 10x
+  (`config.AUGMENTATION_REPEAT`) into the train split only — so this one run
+  now combines the length fix and the vocabulary-gap fix from the start,
+  rather than needing a separate `--patch` pass afterward (see Section 7,
+  which isn't needed for this particular run). The repeat factor is lower
+  than `--patch`'s 20x because this run uses more epochs (4 vs. 2) — repeat x
+  epochs stays at ~40 either way, matching what the earlier patch run's
+  generalization check confirmed works without memorizing the repeated rows.
+- Runs the vocabulary generalization check (`evaluate.VOCAB_GENERALIZATION_SENTENCES`)
+  at the end alongside the regular spot check, since that's now gated on
+  augmentation actually being used, not specifically on `--patch`.
+
+To override an epoch count, batch size, or the augmentation repeat factor for
+this run without editing code, `train.py` accepts `--epochs`, `--batch-size`,
+`--augmentation-repeat`, `--max-train-samples`, and `--max-eval-samples`,
+e.g. `!python -m gloss_model.train --epochs 6`. Leave these unset to use the
+defaults in `gloss_model/config.py`. Pass `--augmentation-data ""` to disable
+mixing in the augmentation data entirely, if you ever want a "pure" run for
+comparison.
 
 ## 5. Where the output lands
 
 `gloss_model/config.py` detects `/kaggle/working` at import time and points
-`CHECKPOINT_DIR` (and therefore `train.py`'s default `--output-dir`) at:
-
-```
-/kaggle/working/gloss_model_checkpoints/
-```
-
-containing the final `model.safetensors`, tokenizer files, and (per
+`CHECKPOINT_DIR` (and therefore `train.py`'s default `--output-dir`) at
+`/kaggle/working/gloss_model_checkpoints/` — but for this run you passed the
+explicit override from Section 4, so it lands at
+`/kaggle/working/gloss_model_checkpoints_v2/` instead, containing the final
+`model.safetensors`, tokenizer files, and (per
 `save_total_limit=2`) up to two intermediate `checkpoint-<step>/`
 subdirectories from `save_strategy="epoch"`.
 
@@ -99,13 +128,30 @@ as a new Kaggle Dataset to feed into a later inference notebook.
 
 ## 6. Bringing the checkpoint back locally
 
-Download `gloss_model_checkpoints/` from the notebook's Output tab and place
-it at `gloss_model/checkpoints/` in the local repo (matching the local default
-path from `gloss_model/config.py`) so `gloss_model/inference.py`'s
-`load_model()` finds it without needing `--output-dir`/`checkpoint_dir`
-overrides.
+For a run using the default `--output-dir` (`gloss_model_checkpoints/`):
+download it from the notebook's Output tab and place it at
+`gloss_model/checkpoints/` in the local repo (matching the local default path
+from `gloss_model/config.py`) so `gloss_model/inference.py`'s `load_model()`
+finds it without needing `--output-dir`/`checkpoint_dir` overrides.
+
+**For this run** (Section 4's `gloss_model_checkpoints_v2`): download it into
+a **separate** local folder, e.g. `gloss_model/checkpoints_v2/` — do **not**
+overwrite `gloss_model/checkpoints/`, which still holds the current v1 model
+you're comparing against. Point `--init-checkpoint`/`load_model(checkpoint_dir=...)`
+at `gloss_model/checkpoints_v2/` explicitly when you want to try it, until
+you've decided whether to promote it to replace v1.
 
 ## 7. Patch runs: continuing from an existing checkpoint
+
+**Not needed for the current max_length + vocabulary fix** — that's being
+done as one fresh full retrain (Sections 1-6; see Section 4's notes) since
+the foundational training is being redone anyway, rather than layering a
+patch on top of a patch. This section stays documented for a future
+situation where a targeted fix on top of an already-good checkpoint makes
+more sense than a full retrain. The `checkpoint-v1.zip` /
+`asl-gloss-checkpoint-v1` Kaggle Dataset uploaded for the previous patch run
+isn't needed for a full retrain — no need to re-upload it for this run, but
+no harm leaving it attached either.
 
 For a targeted vocabulary fix rather than a full retrain, `train.py --patch`
 continues fine-tuning from an already-trained checkpoint (instead of

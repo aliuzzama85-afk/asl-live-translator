@@ -8,6 +8,11 @@ Usage:
         # in gloss_model/data/vocab_augmentation.csv, to close a specific
         # vocabulary gap without a full retrain -- see VOCAB_DIAGNOSIS.md.
 
+A plain full run already mixes in gloss_model/data/vocab_augmentation.csv by
+default (see --augmentation-data's default and config.AUGMENTATION_REPEAT) --
+--patch exists for layering a later fix onto an already-good checkpoint, not
+as the only way to use the augmentation data.
+
 See gloss_model/PLAN.md for the full rationale behind each step.
 """
 
@@ -70,10 +75,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--augmentation-repeat",
         type=int,
-        default=config.PATCH_AUGMENTATION_REPEAT,
+        default=None,
         help="How many times to repeat the augmentation rows before mixing "
         "them into the (much larger) base train split, so they aren't "
-        "diluted to near-zero effective weight.",
+        "diluted to near-zero effective weight. Defaults to "
+        "config.AUGMENTATION_REPEAT (10) for a full/--quick run or "
+        "config.PATCH_AUGMENTATION_REPEAT (20) for --patch -- scaled so the "
+        "total exposure (repeat x epochs) stays consistent across modes.",
     )
     parser.add_argument(
         "--epochs", type=int, default=None, help="Override epoch count."
@@ -147,6 +155,11 @@ def resolve_training_config(args: argparse.Namespace) -> config.TrainingConfig:
             if args.max_eval_samples is not None
             else base.max_eval_samples
         ),
+        augmentation_repeat=(
+            args.augmentation_repeat
+            if args.augmentation_repeat is not None
+            else base.augmentation_repeat
+        ),
     )
 
 
@@ -176,11 +189,14 @@ def main() -> None:
         logger.info(
             "Mixing in augmentation data from %s (x%d)...",
             args.augmentation_data,
-            args.augmentation_repeat,
+            train_config.augmentation_repeat,
         )
         augmentation = data_prep.load_augmentation_dataset(args.augmentation_data)
         splits = data_prep.mix_in_augmentation(
-            splits, augmentation, repeat=args.augmentation_repeat, seed=config.SEED
+            splits,
+            augmentation,
+            repeat=train_config.augmentation_repeat,
+            seed=config.SEED,
         )
 
     logger.info(
@@ -240,12 +256,14 @@ def main() -> None:
     for sentence, prediction in evaluate.run_spot_check(model, tokenizer):
         logger.info("  %r -> %r", sentence, prediction)
 
-    if args.patch:
+    if args.augmentation_data:
         # Distinguishes genuine vocabulary generalization from memorization
         # of the repeated (--augmentation-repeat) augmented phrasings -- see
-        # VOCAB_GENERALIZATION_SENTENCES's docstring in evaluate.py. Logged
-        # as its own section, not mixed into the spot check above, so the
-        # comparison is easy to find and read.
+        # VOCAB_GENERALIZATION_SENTENCES's docstring in evaluate.py. Runs
+        # whenever augmentation data was actually mixed in (full runs now
+        # include it by default, not just --patch). Logged as its own
+        # section, not mixed into the spot check above, so the comparison is
+        # easy to find and read.
         logger.info(
             "Running vocabulary generalization check (novel sentence "
             "structures, not memorization of vocab_augmentation.csv)..."

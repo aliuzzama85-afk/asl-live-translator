@@ -30,10 +30,21 @@ SEED = 42
 # --- Preprocessing ---
 # T5 has no separate encoder/decoder vocab -- task framing comes from this prefix.
 TASK_PREFIX = "translate English to ASL gloss: "
-# Corpus token-length p99 is 21 (text) / 20 (gloss); 32 covers that with margin
-# without wasting compute on the rare long tail (max observed: 59 / 54).
-MAX_SOURCE_LENGTH = 32
-MAX_TARGET_LENGTH = 32
+# The original 32/32 was set from whitespace WORD-count percentiles (p99 21/20)
+# and never checked against real T5 subword tokenization. The custom DESC-/X-
+# gloss notation isn't in T5's vocabulary, so it fragments into several subword
+# pieces per token -- actual subword-token percentiles are far higher: source
+# (with task prefix) p50/p90/p99/max = 26/32/40/76; target (gloss)
+# p50/p90/p99/max = 36/51/65/129. At 32, 59% of all training targets were
+# silently truncated (confirmed identically on train/validation/test -- see
+# PROJECT_STATUS.md Section 8). These cover p99 with headroom without chasing
+# the rare max-outlier tail (which skews toward ASLG-PC12's most rule-generated,
+# least representative long Europarl sentences anyway). Generation latency at
+# the higher target length was benchmarked (forced full-length, worst case) at
+# ~3x the cost of 32 on CPU -- small relative to the pipeline's ~1-2s lag
+# budget; see the chat session for the numbers.
+MAX_SOURCE_LENGTH = 48
+MAX_TARGET_LENGTH = 80
 
 # --- Splits ---
 TRAIN_FRACTION = 0.90
@@ -68,17 +79,28 @@ QUICK_MAX_EVAL_SAMPLES = 100
 QUICK_NUM_EPOCHS = 1
 QUICK_BATCH_SIZE = 8
 
+# Augmentation is mixed into every training run by default (not just --patch)
+# -- the 360-row set (see AUGMENTATION_DATA_PATH) is tiny next to the ~73k-row
+# base train split, under 0.5% of it unrepeated, not enough signal for a model
+# to reliably pick it up. Repeating it brings it to a few percent of the mix.
+# The repeat factor is scaled by expected epoch count so the total per-example
+# exposure budget (repeat x epochs) stays close to 40 -- roughly what the
+# validated Kaggle patch run used (20 x 2 epochs) and confirmed, via its
+# generalization check, produces real vocabulary learning rather than
+# memorization of the repeated phrasings. A full run uses more epochs (4), so
+# it uses a proportionally lower repeat (10 x 4 = 40) for the same budget.
+AUGMENTATION_REPEAT = 10
+
 # Patch mode: a short continued-fine-tuning pass on top of an existing
 # checkpoint (--init-checkpoint), mixing in AUGMENTATION_DATA_PATH, to close a
 # specific vocabulary gap without a full retrain. Lower LR than a from-scratch
 # run, since the model has already converged and a targeted patch shouldn't
-# risk destabilizing everything it already learned.
+# risk destabilizing everything it already learned. Kept for any future
+# incremental fix on top of a good baseline, even though the current
+# max_length + vocabulary fixes are being combined into one full retrain
+# instead of layered patches -- see PROJECT_STATUS.md Section 8.
 PATCH_NUM_EPOCHS = 2
 PATCH_LEARNING_RATE = 1e-4
-# The augmentation set (360 rows) is tiny next to the ~73k-row base train
-# split -- under 0.5% of it unrepeated, not enough signal for a model to
-# reliably pick up new vocabulary in only a couple of epochs. Repeating it
-# brings it to a few percent of the mixed train set instead.
 PATCH_AUGMENTATION_REPEAT = 20
 
 
@@ -93,6 +115,8 @@ class TrainingConfig:
         batch_size: Per-device train/eval batch size.
         max_train_samples: Cap on training examples, or None to use all.
         max_eval_samples: Cap on validation examples, or None to use all.
+        augmentation_repeat: How many times to repeat the augmentation rows
+            before mixing them into the base train split.
     """
 
     learning_rate: float = LEARNING_RATE
@@ -101,6 +125,7 @@ class TrainingConfig:
     batch_size: int = BATCH_SIZE
     max_train_samples: int | None = None
     max_eval_samples: int | None = None
+    augmentation_repeat: int = AUGMENTATION_REPEAT
 
     @classmethod
     def quick(cls) -> "TrainingConfig":
@@ -118,4 +143,5 @@ class TrainingConfig:
         return cls(
             learning_rate=PATCH_LEARNING_RATE,
             num_epochs=PATCH_NUM_EPOCHS,
+            augmentation_repeat=PATCH_AUGMENTATION_REPEAT,
         )
