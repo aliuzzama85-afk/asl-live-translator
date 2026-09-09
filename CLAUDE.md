@@ -107,8 +107,8 @@ design decision, a gotcha), update this file before ending the session.
   12/17/20 as word counts suggested), and **59% of all training targets exceed
   32 tokens and get silently truncated** by `truncation=True` in
   `data_prep.preprocess()`. True since the very first training run, not
-  introduced by the vocab patch. Not yet fixed — see `PROJECT_STATUS.md` Section 8
-  for the full investigation and what raising the limit would require (retraining).
+  introduced by the vocab patch. **Fixed 2026-09-10** — raised to 48/80 and
+  retrained; see the v2 entry below and `PROJECT_STATUS.md` Sections 8-9.
 - **A vocabulary-gap patch (`train.py --patch`, see `gloss_model/VOCAB_DIAGNOSIS.md`)
   ran on Kaggle and improved all metrics**: `test_token_f1=0.970`,
   `test_bleu=94.7`, `test_exact_match=0.835`, with the generalization check
@@ -116,3 +116,22 @@ design decision, a gotcha), update this file before ending the session.
   augmented sentences. Words outside both the corpus and the 121-word patch
   list (e.g. "apartment", "skip") still produce garbled output — expected,
   not a bug; the gap is broader than what was patched.
+- **v2 retrain combined the `max_length` fix and vocabulary augmentation into
+  one from-scratch run** (not another patch on top of a patch) —
+  `MAX_SOURCE_LENGTH=48`/`MAX_TARGET_LENGTH=80`, `t5-small`, full 4 epochs,
+  augmentation mixed in from the start. Succeeded: `test_bleu=93.9`,
+  `test_token_f1=0.966`, `test_exact_match=0.812` — matching/slightly
+  exceeding v1 despite being graded against far less truncated ground truth,
+  a real improvement not a wash. Spot-check 15/15 clean, generalization check
+  7/8 clean (including "weather" and "skip" now correct, both broken before).
+  One held-out sentence ("roommate...gave them back") still stops early at
+  `GIVE X-`, but confirmed via direct testing (`max_length=48` vs `80` give
+  identical 33-token output) that this is the model choosing to stop, not the
+  truncation bug recurring — a narrow generalization limit, not a config
+  issue. **Stage 3 formally signed off 2026-09-10.**
+  `gloss_model/checkpoints_v2/` is the model to use going forward, superseding
+  `gloss_model/checkpoints/` (v1, kept for comparison). Full detail:
+  `PROJECT_STATUS.md` Section 9. Also noted: the checkpoint's own
+  `generation_config.json` still carries T5's stock `max_length: 20` default
+  (harmless today since every caller passes `max_length` explicitly, but a
+  footgun for any future caller that doesn't).
