@@ -1,0 +1,146 @@
+.band {
+  min-height: var(--space-16);
+  background-color: var(--color-panel);
+  border-top: 1px solid var(--color-hairline);
+  padding: var(--space-4) var(--space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.lowConfidenceBanner,
+.oovBanner {
+  font-family: var(--font-family-mono);
+  font-weight: var(--font-label-weight);
+  font-size: var(--font-label-size);
+  letter-spacing: var(--font-label-letter-spacing);
+  text-transform: uppercase;
+  color: var(--color-signal-error);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-signal-error);
+}
+
+.mainRow {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-6);
+  flex-wrap: wrap;
+}
+
+.glossArea {
+  min-width: 0;
+}
+
+.glossWord {
+  font-family: var(--font-family-display);
+  font-weight: var(--font-display-weight);
+  font-size: var(--font-display-size);
+  line-height: var(--font-display-line-height);
+  letter-spacing: var(--font-display-letter-spacing);
+  color: var(--color-text-primary);
+  text-transform: uppercase;
+  word-break: break-word;
+}
+
+.glossPlaceholder {
+  font-family: var(--font-family-mono);
+  font-weight: var(--font-body-weight);
+  font-size: var(--font-body-size);
+  line-height: var(--font-body-line-height);
+  color: var(--color-text-muted);
+}
+
+.source {
+  font-family: var(--font-family-mono);
+  font-weight: var(--font-mono-data-weight);
+  font-size: var(--font-mono-data-size);
+  color: var(--color-text-muted);
+  margin-top: var(--space-1);
+}
+
+.controls {
+  display: flex;
+  gap: var(--space-3);
+  flex: none;
+}
+
+.controlButton {
+  font-family: var(--font-family-mono);
+  font-weight: var(--font-label-weight);
+  font-size: var(--font-label-size);
+  letter-spacing: var(--font-label-letter-spacing);
+  text-transform: uppercase;
+  color: var(--color-text-primary);
+  background-color: transparent;
+  border: 1px solid var(--color-hairline);
+  padding: var(--space-2) var(--space-4);
+  cursor: pointer;
+}
+
+.controlButton:hover:not(:disabled) {
+  border-color: var(--color-accent-amber);
+}
+
+.controlButton[aria-pressed="true"] {
+  background-color: var(--color-accent-amber);
+  color: var(--color-bg);
+  border-color: var(--color-accent-amber);
+}
+
+.controlButton:disabled {
+  color: var(--color-text-muted);
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.searchForm {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.searchLabel {
+  font-family: var(--font-family-mono);
+  font-weight: var(--font-label-weight);
+  font-size: var(--font-label-size);
+  letter-spacing: var(--font-label-letter-spacing);
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  flex: none;
+}
+
+.searchInput {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--font-family-mono);
+  font-weight: var(--font-body-weight);
+  font-size: var(--font-body-size);
+  line-height: var(--font-body-line-height);
+  color: var(--color-text-primary);
+  background-color: var(--color-bg);
+  border: 1px solid var(--color-hairline);
+  padding: var(--space-2) var(--space-3);
+}
+
+.searchInput::placeholder {
+  color: var(--color-text-muted);
+}
+
+.searchSubmit {
+  font-family: var(--font-family-mono);
+  font-weight: var(--font-label-weight);
+  font-size: var(--font-label-size);
+  letter-spacing: var(--font-label-letter-spacing);
+  text-transform: uppercase;
+  color: var(--color-bg);
+  background-color: var(--color-signal-ready);
+  border: 1px solid var(--color-signal-ready);
+  padding: var(--space-2) var(--space-4);
+  cursor: pointer;
+  flex: none;
+}
+
+.searchSubmit:hover {
+  opacity: 0.85;
+}

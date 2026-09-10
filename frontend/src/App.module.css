@@ -1,0 +1,32 @@
+.app {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--color-bg);
+}
+
+.stage {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--color-bg);
+  padding: var(--space-6);
+}
+
+.stageMessage {
+  font-family: var(--font-family-display);
+  font-weight: var(--font-heading-weight);
+  font-size: var(--font-heading-size);
+  line-height: var(--font-heading-line-height);
+  letter-spacing: var(--font-heading-letter-spacing);
+  color: var(--color-text-muted);
+  text-align: center;
+  text-transform: uppercase;
+  max-width: 40ch;
+}
+
+.stageMessageError {
+  color: var(--color-signal-error);
+}
