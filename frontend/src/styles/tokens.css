@@ -1,0 +1,63 @@
+/*
+ * Design tokens -- single source of truth, per frontend/PLAN.md Section 0/7.
+ * Every component stylesheet must consume these via var(--token-name);
+ * never hardcode a hex or px value in a component's own CSS.
+ */
+:root {
+  /* ---- Color palette (PLAN.md Section 0) ---- */
+  --color-bg: #0a0a0b;
+  --color-panel: #141417;
+  --color-hairline: #2a2b2f;
+  --color-text-primary: #f5f5f0;
+  --color-text-muted: #9aa0a6;
+  --color-accent-amber: #ffc857;
+  --color-signal-ready: #35e0c5;
+  --color-signal-error: #ff6b5e;
+  --color-skeleton-bone: #f5f5f0;
+  --color-skeleton-joint: #ffc857;
+
+  /* ---- Typography ---- */
+  --font-family-display: "Space Grotesk", sans-serif;
+  --font-family-mono: "IBM Plex Mono", monospace;
+
+  --font-display-weight: 700;
+  --font-display-size: clamp(2rem, 5vw, 4rem);
+  --font-display-line-height: 1.1;
+  --font-display-letter-spacing: -0.01em;
+
+  --font-heading-weight: 700;
+  --font-heading-size: 1.25rem;
+  --font-heading-line-height: 1.3;
+  --font-heading-letter-spacing: 0;
+
+  --font-body-weight: 500;
+  --font-body-size: 1rem;
+  --font-body-line-height: 1.5;
+  --font-body-letter-spacing: 0;
+
+  --font-label-weight: 600;
+  --font-label-size: 0.8125rem;
+  --font-label-line-height: 1.4;
+  --font-label-letter-spacing: 0.06em;
+
+  --font-mono-data-weight: 500;
+  --font-mono-data-size: 0.875rem;
+  --font-mono-data-line-height: 1.4;
+  --font-mono-data-letter-spacing: 0;
+
+  /* ---- Spacing scale (8px base unit) ---- */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-12: 48px;
+  --space-16: 64px;
+
+  /* ---- Layout ---- */
+  --status-strip-height: 40px;
+  --focus-ring-color: var(--color-accent-amber);
+  --focus-ring-width: 2px;
+  --focus-ring-offset: 2px;
+}
