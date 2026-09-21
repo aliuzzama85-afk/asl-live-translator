@@ -1,6 +1,7 @@
 # Project Status
 
-Last updated: 2026-09-10 (Stage 3 formally signed off — see Section 9).
+Last updated: 2026-09-22 (Stage 5 formally signed off — see Section 11;
+Stage 4 also complete — see Section 10).
 This is a living status doc — update it at the end of a session with
 meaningful progress. `CLAUDE.md` stays static (conventions/architecture/
 security rules); this file tracks what's actually been built and what's left.
@@ -18,8 +19,8 @@ to pick up exactly where things stand.
 | 1. ASR (speech-to-text) | **Not started** | `pipeline/asr.py` doesn't exist yet; `pipeline/` only has an empty `__init__.py`. |
 | 2. VAD chunking | **Not started** | `pipeline/vad.py` doesn't exist yet. |
 | 3. Gloss translation | **Done — signed off 2026-09-10** | See Section 9. `gloss_model/checkpoints_v2/` is the model to use going forward, superseding v1. |
-| 4. Gloss-to-pose lookup | **Not started — this is the next thing to build** | `pose_library/` only has an empty `__init__.py`. |
-| 5. Rendering (frontend) | **Not started (tooling only)** | `frontend/package.json` + eslint/prettier/React/Three.js configured and `npm install`-verified, but zero components written. |
+| 4. Gloss-to-pose lookup | **Done — see Section 10** | 118-word pose library built from WLASL + MediaPipe, 61 tests passing. Fingerspelling fallback and the WLASL/C-UDA licensing question are still open — see Section 5. |
+| 5. Rendering (frontend) | **Done — signed off 2026-09-22, see Section 11** | Single-word skeleton renderer, feature-complete per `frontend/PLAN.md`'s v1 scope, 25/25 tests passing (`a024993`). Multi-word playback (build-order step 3) is next, not yet started. |
 
 ### Stage 3 completion criteria — all met, signed off 2026-09-10 (see Section 9)
 - All planned modules exist and work: `gloss_model/{config,data_prep,evaluate,train,inference}.py`.
@@ -174,50 +175,58 @@ three are also logged in `CLAUDE.md`'s "Known gotchas / decisions log".
 3. **Licensing of ASLG-PC12** (flagged in PLAN.md, never resolved): not checked
    against the HF dataset page or the original achrafothman.net release. Not
    blocking local prototyping, but should happen before any public release.
-4. **README.md limitation note**: PLAN.md documents the rule-generated-corpus
-   quality ceiling, but you asked for that to also land in the top-level README
-   "eventually" (not yet — this hasn't been done).
-5. **Stage 4 approach itself is entirely undiscussed** — no decisions yet on
-   MediaPipe extraction specifics, how much of WLASL to pull, or the
-   fingerspelling-fallback design, beyond what CLAUDE.md's `ml-engineer` agent
-   description already states as responsibilities.
+   **Still open as of 2026-09-22.**
+4. ~~README.md limitation note~~ **Resolved 2026-09-22** — added to
+   README.md (rule-generated, Europarl-register-corpus quality ceiling).
+5. ~~Stage 4 approach itself is entirely undiscussed~~ **Resolved** — Stage 4
+   was designed (`pose_library/PLAN.md`) and built; see Section 10.
+6. **WLASL/C-UDA licensing ambiguity (Stage 4) — open, not resolved.**
+   `pose_library/PLAN.md` Section 1 flags a genuine ambiguity: whether an
+   extracted keypoint sequence counts as a C-UDA "Result" (unrestricted) or
+   still "Data" in modified form (restricted) isn't settled by the license
+   text's own de-minimis test, and WLASL's own README separately states "no
+   commercial usage is allowed" in plain terms. Current policy is local-only/
+   gitignored/never redistributed, but this needs the user's explicit
+   sign-off before any public release or commercial pivot — flagging again,
+   not resolved here. See Section 10.
+7. **Fingerspelling alphabet — not built.** `pose_library/PLAN.md` Section 5
+   designs a self-recorded 26-letter alphabet plus
+   `get_fingerspelling_sequence()`/`resolve_gloss_word()`; none of this
+   exists yet, so an OOV gloss word today gets a "not yet available" message
+   rather than a fingerspelled fallback. See Section 10.
+8. **Multi-word / cross-sign interpolation — not started.** This is
+   CLAUDE.md's build-order step 3, distinct from (and not begun by) the
+   Stage 4/5 work this update covers. See Section 11 and Section 6.
+9. **Stage 1/2 (live ASR + VAD) — not started**, per CLAUDE.md's build order
+   (step 4, after step 3 above).
 
 ---
 
 ## 6. Exact next steps, in order
 
-Stage 3 is done (Section 9) — **Stage 4 (pose-to-gloss lookup library) is the
-immediate next step**, per CLAUDE.md's build order and its `ml-engineer` agent
-responsibilities:
+Stage 4 (Section 10) and Stage 5 (Section 11) are both done. Per CLAUDE.md's
+build order, the next official step is **step 3: interpolation/smoothing
+between signs** (multi-word sentence playback, cross-word transition
+blending) — **not** Stage 1/2 live speech, which is step 4. Nothing about
+this has been designed yet:
 
-1. **Set up WLASL access**: figure out how to obtain the WLASL video dataset
-   (dxli94/WLASL on GitHub — check its actual current download process/license
-   before assuming anything, the same way ASLG-PC12's provenance turned out to
-   need verifying rather than trusting secondhand descriptions).
-2. **Extract keypoints with MediaPipe**: use MediaPipe Hands (and Holistic if
-   facial/body context turns out to matter) to pull pose sequences from WLASL
-   videos. `mediapipe` is already in `requirements.txt` and installed/verified
-   in the local venv (Stage 3's environment setup), so no new environment work
-   should be needed here.
-3. **Store as lightweight JSON, not raw video**, in `pose_library/data/`
-   (already gitignored — same "don't commit large binaries" pattern as the
-   gloss checkpoints).
-4. **Build the lookup interface**: `get_pose_sequence(gloss_word: str) -> PoseSequence | None`.
-5. **Implement the fingerspelling fallback for out-of-vocabulary gloss words
-   before considering Stage 4 done** — this matters more than usual here,
-   since `gloss_model/PLAN.md` Section 1 confirmed ASLG-PC12 has **zero**
-   fingerspelling/classifier annotation, so gloss output from Stage 3 will
-   essentially never itself contain fingerspelling markers — the fallback in
-   Stage 4 has to detect OOV gloss words on its own and carry real load, not
-   handle a rare edge case.
-6. **Write tests in `tests/` alongside**, per CLAUDE.md's testing rule — new
-   modules in `pose_library/` need corresponding tests before moving on, same
-   as Stage 3.
+1. **Design multi-word playback**: how a sequence of gloss words becomes a
+   played sentence. Likely needs the in-memory queue CLAUDE.md's architecture
+   section describes (so playback doesn't block on translation), and a
+   cross-word blending approach analogous to `reconstructTimeline.js`'s
+   existing within-word gap interpolation — but `frontend/PLAN.md` Section 4
+   was explicit that nothing in Stage 5's data model or component boundaries
+   should be assumed to have solved this yet.
+2. **Write tests alongside**, per CLAUDE.md's testing rule, before moving on
+   to Stage 1/2.
 
-Lower priority, whenever convenient (not blocking Stage 4):
-- Add the README.md limitation note about ASLG-PC12 being rule-generated,
-  Europarl-register text (Section 5.4/`VOCAB_DIAGNOSIS.md`).
-- Check ASLG-PC12's actual license terms (Section 5.3) before any public release.
+Loose ends, not blocking step 3 but worth closing out when convenient:
+- **Fingerspelling alphabet** (Section 5 item 7, Section 10): self-record
+  the 26 letters, implement `resolve_gloss_word()`.
+- **WLASL/C-UDA licensing decision** (Section 5 item 6, Section 10): get the
+  user's explicit sign-off on the current local-only policy, or resolve the
+  ambiguity, before any public/commercial step.
+- **ASLG-PC12 licensing check** (Section 5 item 3): still unchecked.
 
 ---
 
@@ -389,3 +398,153 @@ not blocking anything right now.
 use going forward, superseding v1 (`gloss_model/checkpoints/`, kept for
 comparison, not deleted). Per CLAUDE.md's build-order rule, **Stage 4 (pose
 library) is next** — see Section 6.
+
+---
+
+## 10. Stage 4: pose library — built and complete (2026-09-11)
+
+What was built (`pose_library/`), file by file:
+
+- **`config.py`** — paths/constants (`POSES_DIR`, `MANIFEST_PATH`, etc.).
+- **`wlasl_metadata.py`** — parses `WLASL_v0.3.json`; `build_gloss_index()`,
+  `extract_vocab_stems()` (strips `DESC-`/`X-` prefixes and pronoun markers so
+  gloss tokens can be compared against `gloss_model`'s augmentation
+  vocabulary), `select_instance()` (prefers a direct `.mp4` URL over YouTube/
+  `.swf`/gated sources, per `pose_library/PLAN.md` Section 1's real
+  source-diversity findings across WLASL's 19 hosting domains).
+- **`build_target_vocab.py`** — cross-references `gloss_model`'s
+  `vocab_augmentation.csv` against the real WLASL gloss list, splits into
+  matched/unmatched, writes `pose_library/data/target_vocab.json`.
+- **`download.py`** — downloads and trims WLASL video instances.
+- **`extract.py`** — MediaPipe Holistic extraction to a 48-landmark
+  `PoseSequence` per word (21 left-hand + 21 right-hand + 6 pose-subset
+  shoulder/elbow/wrist points); drops (doesn't zero-fill or interpolate)
+  frames where neither hand is detected.
+- **`types.py`** — the frozen `PoseSequence` dataclass (`to_dict`/`from_dict`/
+  `as_array`).
+- **`manifest.py`** — `compute_quality_flags()` (the `low_confidence`/
+  `quality_notes` heuristic: frame count, retention %, and mid-clip-gap
+  thresholds picked from the real distribution across the first full build,
+  not round guessed numbers), `build_entry()`, `load_manifest()`/
+  `save_manifest()`.
+- **`lookup.py`** — `get_pose_sequence(gloss_word) -> PoseSequence | None`.
+- **`build_library.py`** — the end-to-end pipeline (download → extract →
+  manifest) actually run to produce the real library on disk.
+- **`PLAN.md`** — the full design doc: WLASL access/licensing research (read
+  directly from the real `WLASL_v0.3.json` and `C-UDA-1.0.pdf`, not assumed),
+  the MediaPipe pipeline design, storage format, lookup interface, and the
+  fingerspelling-fallback design (not yet implemented — see below).
+
+**Real library on disk** (gitignored, `pose_library/data/`, produced by
+`build_library.py`; verified directly against the real manifest this
+session, not assumed):
+
+- **118 words.**
+- **14/118 (~12%) flagged `low_confidence: true`** by `compute_quality_flags()`
+  — not a rare edge case; budgeted for accordingly in Stage 5's UI
+  (Section 11).
+
+**Tests**: 61 tests across `tests/test_pose_download.py`,
+`test_pose_extract.py`, `test_pose_lookup.py`, `test_pose_manifest.py`,
+`test_pose_types.py`, `test_wlasl_metadata.py`, `test_build_library.py`, and
+`test_build_target_vocab.py` — all passing; `ruff`/`black` clean on
+`pose_library/` (all verified this session, not assumed from an earlier run).
+
+**Not built**:
+
+- **Fingerspelling fallback.** `pose_library/PLAN.md` Section 5 designs
+  `get_fingerspelling_sequence()`/`resolve_gloss_word()` and a self-recorded
+  26-letter alphabet — none of this exists yet. `lookup.py` only has
+  `get_pose_sequence()`; a miss returns `None`, and Stage 5's frontend
+  (Section 11) handles that miss with a visible "NO SIGN FOUND … FINGERSPELLING
+  NOT YET AVAILABLE" message rather than silently failing or fingerspelling.
+
+**Open, unresolved — needs an explicit decision before any public/commercial
+use:** `pose_library/PLAN.md` Section 1 flags a genuine, still-unresolved
+licensing ambiguity around WLASL-derived pose data under the Computational
+Use of Data Agreement (C-UDA): whether an extracted keypoint sequence counts
+as a "Result" (Section 2.2/5.5, unrestricted) or is still "Data" in modified
+form (Section 5.2, restricted) turns on the license's own de-minimis test,
+which the license text doesn't settle either way — and WLASL's own README
+separately, plainly states "no commercial usage is allowed." Current policy
+(per PLAN.md's recommendation, never formally revisited by the user): treat
+all WLASL-derived pose data as local-only, gitignored, never redistributed,
+never sold. **This is flagged again here, not resolved** — it needs the
+user's explicit sign-off before any public release or commercial pivot.
+
+---
+
+## 11. Stage 5: rendering — signed off (2026-09-22)
+
+Initial implementation landed 2026-09-11 (`3744355`, single-word skeleton
+playback; `2c9b6f5`, design tokens/app scaffolding). Refined and closed out
+across two later sessions:
+
+- **`b5138da`** (2026-09-21) — soft-follow content-fit camera
+  (`computeContentBounds`/`computeFitTransform`/`projectPoint` in
+  `skeletonBones.js`): hand landmarks only cover ~12-17% of the raw
+  normalized frame, so the original direct `x * canvasSize` mapping left
+  signs too small to read; this re-fits per frame to real hand content,
+  eased via exponential smoothing, with a `prefers-reduced-motion`
+  instant-snap fallback. Documented in `frontend/PLAN.md`'s "Camera fit"
+  subsection (`fa93b3e`).
+- **`a024993`** (2026-09-22) — added a DOM test environment (happy-dom +
+  `@testing-library/react`; `vite.config.js`'s `test.environment` had been
+  `"node"`, so no component could be rendered at all) and the integration
+  test `frontend/PLAN.md` Section 6 explicitly requires: real words queried
+  live from the actual 118-word manifest (`about`, clean; `phone`,
+  `low_confidence` at 11/68 frames kept; plus a word confirmed absent from
+  the manifest for the OOV case), asserting on real rendered DOM output
+  (text, ARIA roles, canvas presence), not pixels or snapshots.
+- **`28a516d`** (2026-09-22) — doc hygiene: `frontend/PLAN.md`'s
+  low-confidence section said `quality_notes` should be available "on
+  hover/expand"; the shipped `CaptionBand` banner shows it always-visible
+  instead, so the doc was corrected to match the real behavior.
+
+**What was built** (`frontend/`, file by file): `App.jsx` (owns word-lookup
+state, wires `usePoseSequence` → `reconstructTimeline` → `SkeletonCanvas`),
+`hooks/usePoseSequence.js` (fetches the manifest + pose JSON, returns the
+`ok`/`low_confidence`/`not_found`/`error` discriminated union
+`frontend/PLAN.md` Section 5 specifies), `hooks/usePrefersReducedMotion.js`,
+`components/StatusStrip.jsx`/`CaptionBand.jsx`/`SkeletonCanvas.jsx`,
+`lib/skeletonBones.js` (bone topology + camera fit), `lib/reconstructTimeline.js`
+(within-word gap reconstruction: short gaps linearly interpolated, long gaps
+held and dimmed to 50%, per `PLAN.md` Section 4), plus a Vite dev-server
+middleware (`vite.config.js`) serving `pose_library/data/poses/*.json` over
+HTTP as `PLAN.md`'s documented stopgap.
+
+**Stage 5 completion criteria — all met, signed off 2026-09-22:**
+
+- Feature-complete against `frontend/PLAN.md`'s full v1 scope: single-word
+  lookup and playback, play/pause/loop controls with frame-accurate timing
+  from each word's real `fps`, within-word interpolation/gap-smoothing,
+  low-confidence and OOV/not-found UI states, loading/latency state, and the
+  full accessibility pass (contrast, type size, color-independent status,
+  keyboard/focus, ARIA live regions, `prefers-reduced-motion` handling) —
+  verified line-by-line against the actual code, not assumed, in a dedicated
+  gap-analysis pass this session; the one gap it found (no integration test)
+  is exactly what `a024993` closes.
+- **25/25 frontend tests passing** (`skeletonBones.test.js`,
+  `reconstructTimeline.test.js`, and the new `App.test.jsx` integration
+  test) — `a024993`.
+- `frontend/PLAN.md` itself kept in sync with the shipped implementation
+  (`fa93b3e`, `28a516d`) rather than left stale.
+
+**Known gaps, explicitly not blocking sign-off** (out of Stage 5's v1 scope
+per `PLAN.md` Section 6, or deferred to a later stage):
+
+- Fingerspelling rendering — no data exists yet (Section 10 above).
+- Multi-word sentence playback / cross-word transition blending — this is
+  CLAUDE.md's build-order **step 3** ("interpolation/smoothing between
+  signs"), a distinct and still-unstarted step after the Stage 4/5 work
+  ("fed gloss manually", step 2) this section covers. **This, not Stage 1/2
+  live speech, is the next build-order step** — see Section 6.
+- 3D rigged avatar / Three.js — explicit v2 stretch goal; `three` stays
+  unused by v1 code.
+- No live latency measurement against a real pipeline (none exists yet) —
+  the status strip's latency readout is honestly scoped to this stage's own
+  fetch-to-first-frame time only, never a simulated pipeline number.
+
+**Sign-off**: Stage 5 is done. Per CLAUDE.md's build-order rule, the next
+step is multi-word/cross-sign interpolation (build-order step 3), not yet
+started — see Section 6.
