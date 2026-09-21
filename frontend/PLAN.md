@@ -327,8 +327,11 @@ quality metadata, not playback data). A lookup that only fetches
 `CLAUDE.md`'s "never a silent frozen avatar / clear loading state" rule, a
 `low_confidence: true` word must render with a **visible, persistent banner**
 in the status strip — e.g. `● LOW-CONFIDENCE SIGN` in `--color-signal-error`,
-plus the human-readable `quality_notes` string available on hover/expand —
-while still playing the (degraded) skeleton underneath. Not: silently play it
+plus the human-readable `quality_notes` string shown always-visible in a
+caption-band banner (implemented: simpler and more discoverable than gating
+it behind hover/expand, and it comes for free as the same `role="status"
+aria-live="polite"` banner a screen reader needs anyway) — while still
+playing the (degraded) skeleton underneath. Not: silently play it
 as if fine (misleads the user into thinking that's a clean sign), and not:
 refuse to play it at all (the data is real and may still be recognizable,
 especially for something like "phone" where the surviving 11 frames are
