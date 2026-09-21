@@ -87,6 +87,12 @@ function posesServingMiddleware() {
 export default defineConfig({
   plugins: [react(), posesServingMiddleware()],
   test: {
-    environment: "node",
+    // happy-dom over jsdom: no concrete reason to prefer jsdom here -- this
+    // suite doesn't depend on any jsdom-only behavior, and happy-dom is
+    // materially faster while covering everything these tests need
+    // (matchMedia, ResizeObserver, requestAnimationFrame all work; only
+    // canvas 2D context rendering doesn't, which src/test/setup.js stubs).
+    environment: "happy-dom",
+    setupFiles: ["./src/test/setup.js"],
   },
 });
