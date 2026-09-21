@@ -137,3 +137,111 @@ const POSE_SUBSET_NAMES = new Set([
 export function isUndetectedPoint(point) {
   return point[0] === 0 && point[1] === 0 && point[2] === 0;
 }
+
+/**
+ * Drops the pose-subset (shoulder/elbow/wrist) points from a pose, keeping
+ * only hand landmarks.
+ *
+ * Used to fit the camera to hand content specifically: a shoulder-to-wrist
+ * chain can span most of the frame on its own for a sign where the hand
+ * is raised or extended away from the body (e.g. a real "phone" extraction
+ * where that chain alone spans ~60-100% of the frame) -- including those
+ * points in a content-fit bounding box defeats the zoom entirely for
+ * exactly the signs that most need it. The arm/shoulder bones still get
+ * drawn through the resulting (hand-fitted) camera; they simply may extend
+ * beyond the canvas for a raised or extended hand, which is an acceptable
+ * trade-off for legible fingers.
+ *
+ * @param {Array<[number, number, number]>} pose - One frame's full point list.
+ * @param {boolean[]} isPoseSubsetByIndex - From `buildSkeletonTopology`.
+ * @returns {Array<[number, number, number]>} Only the hand-landmark points.
+ */
+export function filterOutPoseSubset(pose, isPoseSubsetByIndex) {
+  return pose.filter((_, i) => !isPoseSubsetByIndex[i]);
+}
+
+/** Padding around the fitted content bounds, as a fraction of the larger
+ * span dimension on each side. Found empirically: a real word's own hand
+ * landmarks only cover roughly 12-17% of a source video's 0-1 coordinate
+ * space per hand (~50% combined with arms/shoulders) -- PLAN.md's original
+ * "map x*canvasSize directly" approach left the signing content tiny and
+ * illegible. Fitting to real content instead needs *some* margin so bones
+ * and joints near the edge aren't clipped by the canvas or the bezel
+ * border. */
+const FIT_PADDING_FRACTION = 0.18;
+
+/**
+ * Computes the bounding box of every *real* (non-`(0,0,0)`-sentinel)
+ * landmark across an entire timeline's frames.
+ *
+ * Computed once per whole sign (not per frame) so the camera framing stays
+ * stable across playback -- a per-frame fit would make the skeleton appear
+ * to jitter/zoom as the bounding box of visible points changes frame to
+ * frame, which would be worse than the original static-framing problem.
+ *
+ * @param {Array<Array<[number, number, number]>>} poses - One pose (array
+ *   of landmark points) per timeline frame.
+ * @returns {{minX: number, minY: number, maxX: number, maxY: number}} The
+ *   real-content bounding box, or the full `[0, 1]` square if no real point
+ *   was found at all (a degenerate sequence -- fail safe to the old
+ *   full-frame behavior rather than divide by zero).
+ */
+export function computeContentBounds(poses) {
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+
+  for (const pose of poses) {
+    for (const point of pose) {
+      if (isUndetectedPoint(point)) continue;
+      if (point[0] < minX) minX = point[0];
+      if (point[0] > maxX) maxX = point[0];
+      if (point[1] < minY) minY = point[1];
+      if (point[1] > maxY) maxY = point[1];
+    }
+  }
+
+  if (!Number.isFinite(minX)) {
+    return { minX: 0, minY: 0, maxX: 1, maxY: 1 };
+  }
+  return { minX, minY, maxX, maxY };
+}
+
+/**
+ * Builds a square, aspect-preserving fit transform from a content bounding
+ * box, so `projectPoint` can map normalized landmark coordinates onto the
+ * canvas zoomed and centered on the real content instead of the full,
+ * mostly-empty source-video frame.
+ *
+ * @param {{minX: number, minY: number, maxX: number, maxY: number}} bounds -
+ *   From `computeContentBounds`.
+ * @returns {{centerX: number, centerY: number, span: number}} `span` is the
+ *   side length (in source-coordinate units) of the padded square window
+ *   centered on the content -- the larger of width/height plus padding, so
+ *   neither axis is stretched relative to the other.
+ */
+export function computeFitTransform(bounds) {
+  const width = Math.max(bounds.maxX - bounds.minX, 1e-6);
+  const height = Math.max(bounds.maxY - bounds.minY, 1e-6);
+  const centerX = (bounds.minX + bounds.maxX) / 2;
+  const centerY = (bounds.minY + bounds.maxY) / 2;
+  const span = Math.max(width, height) * (1 + FIT_PADDING_FRACTION * 2);
+  return { centerX, centerY, span };
+}
+
+/**
+ * Projects one normalized `[x, y]` landmark coordinate through a fit
+ * transform into canvas pixel space.
+ *
+ * @param {[number, number, number]} point - A landmark's `[x, y, z]`.
+ * @param {{centerX: number, centerY: number, span: number}} transform -
+ *   From `computeFitTransform`.
+ * @param {number} cssSize - The canvas's CSS pixel size (it's square).
+ * @returns {[number, number]} `[canvasX, canvasY]`.
+ */
+export function projectPoint(point, transform, cssSize) {
+  const nx = (point[0] - transform.centerX) / transform.span + 0.5;
+  const ny = (point[1] - transform.centerY) / transform.span + 0.5;
+  return [nx * cssSize, ny * cssSize];
+}

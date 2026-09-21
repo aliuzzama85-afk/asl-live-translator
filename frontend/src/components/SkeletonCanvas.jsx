@@ -1,6 +1,13 @@
 import { useEffect, useMemo, useRef } from "react";
 
-import { buildSkeletonTopology, isUndetectedPoint } from "../lib/skeletonBones.js";
+import {
+  buildSkeletonTopology,
+  computeContentBounds,
+  computeFitTransform,
+  filterOutPoseSubset,
+  isUndetectedPoint,
+  projectPoint,
+} from "../lib/skeletonBones.js";
 import styles from "./SkeletonCanvas.module.css";
 
 /** Reads the real hex values out of tokens.css at draw time, rather than
@@ -18,6 +25,13 @@ function readSkeletonColors() {
 function lerp(a, b, t) {
   return a + (b - a) * t;
 }
+
+/** How quickly the soft-follow camera (see `cameraRef` in `SkeletonCanvas`)
+ * eases toward each frame's own fit. Tuned empirically: high enough that
+ * the camera settles on fast hand motion within a few hundred ms (not a
+ * visible multi-second drift), low enough that it doesn't visibly snap
+ * frame to frame. */
+const CAMERA_SMOOTHING_ALPHA = 0.18;
 
 function lerpPoint(pointA, pointB, t) {
   if (isUndetectedPoint(pointA) || isUndetectedPoint(pointB)) {
@@ -71,6 +85,29 @@ export function SkeletonCanvas({
 
   const topology = useMemo(() => buildSkeletonTopology(landmarkNames), [landmarkNames]);
 
+  // A single fit for the *whole* sequence badly dilutes the zoom benefit --
+  // hands travel during a sign (a real word's combined hand span across its
+  // full ~2s trajectory is ~35-45% of the frame) even though at any single
+  // instant a hand only occupies ~12-17%. So the camera instead re-fits to
+  // *each frame's own* real content and eases toward it (see `cameraRef`
+  // below in the draw loop) -- smoothed rather than snapped, so it tracks
+  // hand motion like a soft-follow camera instead of jittering frame to
+  // frame. Seeded here from the whole-sequence fit purely as a stable
+  // starting point before the first real frame is drawn.
+  //
+  // Fit to hand landmarks only, excluding the pose subset (shoulder/elbow/
+  // wrist): for a sign where the hand is raised or extended (e.g. a real
+  // "phone" extraction, where the shoulder-to-wrist chain alone spans
+  // 60-100% of the frame), including those points would defeat the zoom
+  // entirely for exactly the signs that most need it.
+  const initialFitTransform = useMemo(() => {
+    const poses = timeline
+      ? timeline.frames.map((frame) => filterOutPoseSubset(frame.pose, topology.isPoseSubsetByIndex))
+      : [];
+    return computeFitTransform(computeContentBounds(poses));
+  }, [timeline, topology]);
+  const cameraRef = useRef(initialFitTransform);
+
   const playbackRef = useRef({
     frameIndex: 0,
     accumulatorMs: 0,
@@ -78,7 +115,9 @@ export function SkeletonCanvas({
     endedFired: false,
   });
 
-  // Reset playback position whenever a new timeline is loaded.
+  // Reset playback position and the soft-follow camera whenever a new
+  // timeline is loaded, so a freshly loaded word doesn't inherit the
+  // previous word's zoom/pan and visibly swim into place.
   useEffect(() => {
     playbackRef.current = {
       frameIndex: 0,
@@ -86,7 +125,8 @@ export function SkeletonCanvas({
       lastTimestamp: null,
       endedFired: false,
     };
-  }, [timeline]);
+    cameraRef.current = initialFitTransform;
+  }, [timeline, initialFitTransform]);
 
   // DPI-aware, responsive canvas sizing: the backing store is
   // `cssSize * devicePixelRatio`, scaled back down via ctx.scale, so the
@@ -127,6 +167,20 @@ export function SkeletonCanvas({
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, cssSize, cssSize);
 
+      // Soft-follow camera: ease toward *this frame's own* fit rather than
+      // snapping to it, so the zoom/pan tracks hand motion smoothly instead
+      // of jittering frame to frame (a raw per-frame fit alone would jump
+      // around with every small hand movement). Reduced-motion users get an
+      // immediate snap instead (alpha=1) -- still re-fit per frame for
+      // legibility, just without the continuous panning/zooming motion.
+      const handPose = filterOutPoseSubset(pose, topology.isPoseSubsetByIndex);
+      const rawFit = computeFitTransform(computeContentBounds([handPose]));
+      const camera = cameraRef.current;
+      const smoothingAlpha = reducedMotion ? 1 : CAMERA_SMOOTHING_ALPHA;
+      camera.centerX = lerp(camera.centerX, rawFit.centerX, smoothingAlpha);
+      camera.centerY = lerp(camera.centerY, rawFit.centerY, smoothingAlpha);
+      camera.span = lerp(camera.span, rawFit.span, smoothingAlpha);
+
       const colors = readSkeletonColors();
       const dimFactor = dimmed ? 0.5 : 1;
 
@@ -142,9 +196,11 @@ export function SkeletonCanvas({
         ctx.globalAlpha = (isBridge ? 0.4 : 1) * dimFactor;
         ctx.strokeStyle = colors.bone;
         ctx.lineWidth = isBridge ? 2 : 3;
+        const [ax, ay] = projectPoint(pointA, camera, cssSize);
+        const [bx, by] = projectPoint(pointB, camera, cssSize);
         ctx.beginPath();
-        ctx.moveTo(pointA[0] * cssSize, pointA[1] * cssSize);
-        ctx.lineTo(pointB[0] * cssSize, pointB[1] * cssSize);
+        ctx.moveTo(ax, ay);
+        ctx.lineTo(bx, by);
         ctx.stroke();
       }
 
@@ -155,14 +211,9 @@ export function SkeletonCanvas({
           continue;
         }
         ctx.globalAlpha = dimFactor;
+        const [px, py] = projectPoint(point, camera, cssSize);
         ctx.beginPath();
-        ctx.arc(
-          point[0] * cssSize,
-          point[1] * cssSize,
-          topology.jointRadiusByIndex[i],
-          0,
-          Math.PI * 2
-        );
+        ctx.arc(px, py, topology.jointRadiusByIndex[i], 0, Math.PI * 2);
         ctx.fill();
       }
       ctx.globalAlpha = 1;
