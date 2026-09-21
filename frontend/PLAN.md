@@ -237,6 +237,30 @@ have for a captioning tool), scaled back down via `ctx.scale(dpr, dpr)`, with
 `cssSize` itself responsive (fills the available square region of the Stage
 band, recalculated on resize/observer, not just on mount).
 
+### Camera fit — implemented, supersedes the direct-mapping description above
+
+The direct `x * canvasSize` / `y * canvasSize` mapping described above was
+the initial v1 approach, but real playback showed it left signs illegible:
+a single hand's landmarks only cover ~12-17% of the normalized frame (up to
+~35-45% across a whole word's hand travel, still small). Implemented instead
+(`frontend/src/lib/skeletonBones.js`: `computeContentBounds`,
+`computeFitTransform`, `projectPoint`; wired into the draw loop in
+`SkeletonCanvas.jsx`): a **soft-follow, per-frame content-fit camera** that
+re-fits to each frame's own real (non-`(0,0,0)`-sentinel) landmark bounds,
+eased toward via exponential smoothing (`CAMERA_SMOOTHING_ALPHA = 0.18`)
+rather than snapped, so the zoom/pan tracks hand motion instead of jittering
+frame to frame. The fit excludes the 6-point pose subset
+(`filterOutPoseSubset`) — a raised/extended arm (e.g. "phone") can span
+60-100% of the frame on its own and would defeat the zoom if included; arm/
+shoulder bones still draw through the resulting camera, just possibly
+extending past the canvas edge for those signs. `prefers-reduced-motion`
+gets an instant snap (`alpha = 1`) instead of eased motion, consistent with
+this doc's Accessibility pass (below).
+
+This changes *how* points are projected, not the square-canvas/no-aspect-
+correction simplification described above — that limitation, and its
+"Known gotchas" entry, still applies unchanged.
+
 ---
 
 ## 2. Input contract — verified against real code and real data
