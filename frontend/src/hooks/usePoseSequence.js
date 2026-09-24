@@ -12,6 +12,57 @@ import { useEffect, useRef, useState } from "react";
  */
 
 /**
+ * Resolves one word's already-in-flight `/poses/<word>.json` fetch against
+ * an already-parsed manifest, into the shared ok/low_confidence/not_found/
+ * error union (without `fetchMs` -- timing is a caller concern, since a
+ * single lookup times itself while a batch times the whole batch as one
+ * number, see `usePoseSequences.js`).
+ *
+ * Factored out of the original single-word fetch body (per
+ * `frontend/MULTIWORD_PLAN.md` Section 2) so `usePoseSequence` and the
+ * multi-word `usePoseSequences` share one implementation of "given a word's
+ * response and a manifest, resolve ok/low_confidence/not_found/error"
+ * instead of duplicating it. Deliberately does **not** fetch or classify
+ * the *manifest* itself, and takes the sequence fetch as an
+ * already-started `Promise` rather than calling `fetch` itself -- both so
+ * each hook keeps full control of its own fetch timing/parallelism (this
+ * hook still dispatches the manifest and word-JSON requests
+ * simultaneously, exactly as before this extraction) and so a
+ * manifest-fetch failure can be classified differently by each caller (this
+ * hook folds it into the one word's own not_found/error; the batch hook
+ * treats it as a sequence-level failure -- see PLAN Section 4).
+ *
+ * @param {string} word - Already-trimmed, already-lowercased.
+ * @param {object} manifest - The already-parsed `/poses/manifest.json` body.
+ * @param {Promise<Response>} sequenceFetch - An already-started `fetch()`
+ *   call for `/poses/<word>.json`.
+ * @returns {Promise<Omit<PoseSequenceResult, "fetchMs">>} A result without
+ *   `fetchMs` (never `idle`/`loading`, which are caller-only states).
+ */
+export async function fetchWordPoseResult(word, manifest, sequenceFetch) {
+  const sequenceRes = await sequenceFetch;
+  const manifestEntry = manifest[word];
+
+  if (sequenceRes.status === 404 || !manifestEntry) {
+    return { status: "not_found", word };
+  }
+  if (!sequenceRes.ok) {
+    return {
+      status: "error",
+      message: `Pose data fetch failed (HTTP ${sequenceRes.status}).`,
+    };
+  }
+
+  const sequence = await sequenceRes.json();
+  return {
+    status: manifestEntry.low_confidence ? "low_confidence" : "ok",
+    word,
+    sequence,
+    manifestEntry,
+  };
+}
+
+/**
  * Looks up a single gloss word against the pose library, over the dev-server
  * `/poses/*` stopgap (see `vite.config.js`).
  *
@@ -49,10 +100,13 @@ export function usePoseSequence(word) {
 
     async function run() {
       try {
-        const [manifestRes, sequenceRes] = await Promise.all([
-          fetch("/poses/manifest.json"),
-          fetch(`/poses/${encodeURIComponent(normalizedWord)}.json`),
-        ]);
+        // Both requests are dispatched here, simultaneously -- awaiting the
+        // manifest first below costs no extra network round-trip, since
+        // `sequenceFetch` is already in flight.
+        const manifestFetch = fetch("/poses/manifest.json");
+        const sequenceFetch = fetch(`/poses/${encodeURIComponent(normalizedWord)}.json`);
+
+        const manifestRes = await manifestFetch;
 
         if (requestIdRef.current !== requestId) {
           return; // A newer lookup superseded this one; drop the result.
@@ -74,34 +128,17 @@ export function usePoseSequence(word) {
         }
 
         const manifest = await manifestRes.json();
-        const manifestEntry = manifest[normalizedWord];
-
-        if (sequenceRes.status === 404 || !manifestEntry) {
-          setResult({ status: "not_found", word: normalizedWord });
-          return;
-        }
-        if (!sequenceRes.ok) {
-          setResult({
-            status: "error",
-            message: `Pose data fetch failed (HTTP ${sequenceRes.status}).`,
-          });
-          return;
-        }
-
-        const sequence = await sequenceRes.json();
-        const fetchMs = performance.now() - startedAt;
+        const wordResult = await fetchWordPoseResult(normalizedWord, manifest, sequenceFetch);
 
         if (requestIdRef.current !== requestId) {
           return;
         }
 
-        setResult({
-          status: manifestEntry.low_confidence ? "low_confidence" : "ok",
-          word: normalizedWord,
-          sequence,
-          manifestEntry,
-          fetchMs,
-        });
+        if (wordResult.status === "ok" || wordResult.status === "low_confidence") {
+          setResult({ ...wordResult, fetchMs: performance.now() - startedAt });
+        } else {
+          setResult(wordResult);
+        }
       } catch (err) {
         if (requestIdRef.current !== requestId) {
           return;

@@ -131,11 +131,14 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-/** Submits a word through the real CaptionBand search form, the same path
- * a user takes -- not a direct state injection. */
-async function searchFor(word) {
+/** Submits one or more space-separated words through the real CaptionBand
+ * search form, the same path a user takes -- not a direct state injection.
+ * Per `frontend/MULTIWORD_PLAN.md` Section 1, multiple words are typed
+ * space-separated into the same single input the original single-word app
+ * used. */
+async function searchFor(text) {
   const input = screen.getByLabelText("WORD");
-  fireEvent.change(input, { target: { value: word } });
+  fireEvent.change(input, { target: { value: text } });
   fireEvent.click(screen.getByRole("button", { name: "LOOKUP" }));
 }
 
@@ -210,6 +213,60 @@ describe("App integration: real pose-library words", () => {
     ).not.toBeInTheDocument();
 
     // Status strip reflects the miss.
+    expect(screen.getByText("NO SIGN FOUND")).toBeInTheDocument();
+  });
+
+  it("plays a real multi-word sequence with a not_found word placed mid-sequence: skipped visibly, the rest still plays", async () => {
+    render(<App />);
+
+    // "xyzzynotasign" (confirmed absent from all 118 real manifest keys,
+    // see the OOV test above) sits *between* the two real words, not at
+    // an edge -- per PLAN.md Section 7's explicit test-bar requirement.
+    await searchFor("about xyzzynotasign phone");
+
+    // The sequence still plays: the skeleton canvas is present, not
+    // replaced by a full-stage message, per PLAN.md Section 4's "skip, not
+    // abort" rule for a partial not_found.
+    await waitFor(() => {
+      expect(screen.getByRole("img", { name: "ASL sign skeleton animation" })).toBeInTheDocument();
+    });
+
+    // Both real words appear in the caption row (one as the active
+    // heading, the other as a chip) -- neither is silently dropped.
+    expect(screen.getByText("ABOUT")).toBeInTheDocument();
+    expect(screen.getByText("PHONE")).toBeInTheDocument();
+
+    // The skipped word is listed visibly, not silently dropped, without
+    // taking over the whole Stage (PLAN.md Section 4/5). The status strip
+    // *also* says "SKIPPED" (as part of its own composite count label,
+    // asserted separately below), so this targets CaptionBand's own
+    // dedicated banner specifically, not just any "SKIPPED" text anywhere.
+    expect(screen.getByText(/SKIPPED: "XYZZYNOTASIGN"/)).toBeInTheDocument();
+    expect(screen.queryByText(/NO SIGN FOUND FOR "XYZZYNOTASIGN"/)).not.toBeInTheDocument();
+
+    // The real low-confidence word ("phone") still surfaces its real
+    // quality_notes, same as the single-word low-confidence test above.
+    expect(screen.getByText(/29 mid-clip tracking gaps/)).toBeInTheDocument();
+
+    // Status strip reflects the composite ready state: 2 of 3 words
+    // playable, 1 skipped -- not a bare "READY" (that's reserved for a
+    // single clean word, unchanged from before this feature) and not
+    // "NO SIGN FOUND" (that's the all-missing fallback, not this case).
+    expect(screen.getByText(/READY.*2\/3 WORDS.*1 SKIPPED/)).toBeInTheDocument();
+  });
+
+  it("falls back to the full 'no sign found' message when every word in the sequence is missing", async () => {
+    render(<App />);
+
+    await searchFor("xyzzynotasign alsomissing");
+
+    await waitFor(() => {
+      expect(screen.getAllByText(/NO SIGN FOUND FOR/)).toHaveLength(2);
+    });
+    expect(screen.getAllByText(/"XYZZYNOTASIGN", "ALSOMISSING"/)).toHaveLength(2);
+    expect(
+      screen.queryByRole("img", { name: "ASL sign skeleton animation" })
+    ).not.toBeInTheDocument();
     expect(screen.getByText("NO SIGN FOUND")).toBeInTheDocument();
   });
 });

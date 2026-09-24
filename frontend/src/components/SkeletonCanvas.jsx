@@ -70,6 +70,13 @@ function lerpPoint(pointA, pointB, t) {
  * @param {boolean} props.reducedMotion - Disables inter-frame blending.
  * @param {() => void} [props.onEnded] - Called once when a non-looping
  *   playback reaches its last frame.
+ * @param {(frameIndex: number) => void} [props.onFrameChange] - Called on
+ *   every tick (playing or paused) with the currently-displayed frame
+ *   index. Purely a reporting hook -- this component stays word-agnostic;
+ *   it only ever reports a frame index, never anything about "words". Lets
+ *   a caller (e.g. `App.jsx`, for multi-word playback) map a frame index to
+ *   "which word is playing now" via its own boundary table, per
+ *   `frontend/MULTIWORD_PLAN.md` Section 3.
  */
 export function SkeletonCanvas({
   landmarkNames,
@@ -78,6 +85,7 @@ export function SkeletonCanvas({
   loop,
   reducedMotion,
   onEnded = undefined,
+  onFrameChange = undefined,
 }) {
   const canvasRef = useRef(null);
   const bezelRef = useRef(null);
@@ -102,7 +110,9 @@ export function SkeletonCanvas({
   // entirely for exactly the signs that most need it.
   const initialFitTransform = useMemo(() => {
     const poses = timeline
-      ? timeline.frames.map((frame) => filterOutPoseSubset(frame.pose, topology.isPoseSubsetByIndex))
+      ? timeline.frames.map((frame) =>
+          filterOutPoseSubset(frame.pose, topology.isPoseSubsetByIndex)
+        )
       : [];
     return computeFitTransform(computeContentBounds(poses));
   }, [timeline, topology]);
@@ -228,6 +238,7 @@ export function SkeletonCanvas({
       if (!isPlaying) {
         const current = frames[playback.frameIndex];
         draw(current.pose, current.dimmed);
+        onFrameChange?.(playback.frameIndex);
         playback.lastTimestamp = null;
         rafId = requestAnimationFrame(tick);
         return;
@@ -279,13 +290,14 @@ export function SkeletonCanvas({
         const blended = current.pose.map((pt, i) => lerpPoint(pt, next.pose[i], fraction));
         draw(blended, current.dimmed);
       }
+      onFrameChange?.(playback.frameIndex);
 
       rafId = requestAnimationFrame(tick);
     };
 
     rafId = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(rafId);
-  }, [timeline, isPlaying, loop, reducedMotion, onEnded, topology]);
+  }, [timeline, isPlaying, loop, reducedMotion, onEnded, onFrameChange, topology]);
 
   return (
     <div className={styles.stageWrapper}>

@@ -2,73 +2,153 @@ import { useState } from "react";
 
 import styles from "./CaptionBand.module.css";
 
+/** Per `frontend/MULTIWORD_PLAN.md` Section 1: a security/sanity length
+ * cap on the input, same discipline `gloss_model/inference.py`'s
+ * `MAX_INPUT_CHARS` already applies upstream. Words beyond this are
+ * dropped, not silently truncated -- the caller is told via
+ * `wasTruncated` and must surface it. */
+const MAX_WORDS = 20;
+
 /**
- * The bottom band: word-search input, playback controls, the current gloss
- * word in the display font, and status banners (low-confidence / OOV).
+ * Splits and normalizes the raw search-box text into gloss words.
  *
- * Per PLAN.md Section 3: submit is a lowercase-normalized lookup, no
- * gloss-model/ASR involvement at this stage. Play/Loop are real `<button>`
- * elements with `aria-pressed` reflecting toggle state and a visible custom
- * focus ring (never `outline: none` with nothing in its place).
+ * @param {string} raw
+ * @returns {{words: string[], wasTruncated: boolean}}
+ */
+function parseWords(raw) {
+  const normalized = raw.trim().toLowerCase();
+  if (!normalized) {
+    return { words: [], wasTruncated: false };
+  }
+  // Duplicate consecutive words are valid, intentionally not deduped --
+  // ASL repetition (e.g. signing a word twice for emphasis) is legitimate
+  // input, per PLAN.md Section 1.
+  const all = normalized.split(/\s+/).filter(Boolean);
+  return { words: all.slice(0, MAX_WORDS), wasTruncated: all.length > MAX_WORDS };
+}
+
+/**
+ * @typedef {Object} CaptionWord
+ * @property {string} text - Display text (uppercase gloss for a resolved
+ *   word, or the uppercased typed word for a skipped one).
+ * @property {"ok"|"low_confidence"|"skipped"} kind
+ * @property {boolean} isActive - True for the single word currently playing.
+ */
+
+/**
+ * The bottom band: multi-word search input, playback controls, the current
+ * sequence rendered as a row of words with the playing word highlighted,
+ * and status banners (low-confidence / skipped / truncated).
+ *
+ * Per `frontend/MULTIWORD_PLAN.md` Sections 1 and 5: submit splits on
+ * whitespace into a sequence of already-glossed words (still no gloss-model/
+ * ASR involvement at this stage -- generalizing the original single-word
+ * "fed gloss manually" scope to multiple gloss tokens, not changing it).
+ * Play/Loop are unchanged real `<button>` elements with `aria-pressed` and
+ * a visible custom focus ring.
  *
  * @param {Object} props
- * @param {(word: string) => void} props.onSearch - Called with the
- *   lowercase-normalized word on submit.
- * @param {string|null} props.glossWord - The current sequence's `gloss`
- *   (already uppercase), or `null` if nothing is loaded.
- * @param {string|null} props.source - WLASL attribution string, or `null`.
+ * @param {(words: string[], wasTruncated: boolean) => void} props.onSearch -
+ *   Called with the parsed, capped word sequence on submit.
+ * @param {CaptionWord[]} props.captionWords - The full submitted sequence,
+ *   in order, for the word-progress row. Empty if nothing is loaded.
+ * @param {string|null} props.source - WLASL attribution string for the
+ *   currently-playing word, or `null`.
  * @param {boolean} props.isPlaying
  * @param {() => void} props.onTogglePlay
  * @param {boolean} props.loop
  * @param {() => void} props.onToggleLoop
- * @param {boolean} props.controlsDisabled - True when there's no playable
- *   sequence loaded (nothing found / error / loading).
- * @param {string|null} props.lowConfidenceNotes - `quality_notes` text when
- *   the current word is low-confidence, else `null`.
- * @param {string|null} props.notFoundWord - The word that produced a
- *   not-found result, or `null`.
+ * @param {boolean} props.controlsDisabled - True when there's nothing
+ *   playable loaded (nothing resolved / error / loading).
+ * @param {Array<{word: string, notes: string}>} props.lowConfidenceEntries -
+ *   Every currently-low-confidence word in the sequence, each with its own
+ *   real `quality_notes` text.
+ * @param {string[]} props.skippedWords - Words skipped because they weren't
+ *   found, shown in a small persistent banner *alongside* still-playing
+ *   content (the partial-skip case, PLAN.md Section 4/5). Empty when
+ *   nothing was skipped, or when `missingMessage` is set instead (the
+ *   all-missing case uses that full-takeover message, not this banner).
+ * @param {string|null} props.missingMessage - Set only when *every* word in
+ *   the sequence was skipped/not found -- the same full "NO SIGN FOUND
+ *   FOR..." message `App.jsx`'s Stage message shows, mirrored here per the
+ *   single-word precedent of surfacing it in both places.
+ * @param {boolean} props.wasTruncated - True when the last submission had
+ *   more than `MAX_WORDS` words and was capped.
  */
 export function CaptionBand({
   onSearch,
-  glossWord,
+  captionWords,
   source,
   isPlaying,
   onTogglePlay,
   loop,
   onToggleLoop,
   controlsDisabled,
-  lowConfidenceNotes,
-  notFoundWord,
+  lowConfidenceEntries,
+  skippedWords,
+  missingMessage,
+  wasTruncated,
 }) {
   const [inputValue, setInputValue] = useState("");
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    const normalized = inputValue.trim().toLowerCase();
-    if (normalized) {
-      onSearch(normalized);
-    }
+    const { words, wasTruncated: truncated } = parseWords(inputValue);
+    if (words.length === 0) return;
+    onSearch(words, truncated);
   };
 
   return (
     <footer className={styles.band}>
-      {lowConfidenceNotes ? (
-        <div className={styles.lowConfidenceBanner} role="status" aria-live="polite">
-          ● LOW-CONFIDENCE SIGN — {lowConfidenceNotes}
+      {wasTruncated ? (
+        <div className={styles.oovBanner} role="status" aria-live="polite">
+          SEQUENCE TRUNCATED TO {MAX_WORDS} WORDS
         </div>
       ) : null}
 
-      {notFoundWord ? (
+      {lowConfidenceEntries.length > 0 ? (
+        <div className={styles.lowConfidenceBanner} role="status" aria-live="polite">
+          LOW-CONFIDENCE: {lowConfidenceEntries.map((e) => `"${e.word.toUpperCase()}"`).join(", ")}{" "}
+          — {lowConfidenceEntries.map((e) => e.notes).join(" | ")}
+        </div>
+      ) : null}
+
+      {skippedWords.length > 0 ? (
         <div className={styles.oovBanner} role="status" aria-live="polite">
-          NO SIGN FOUND FOR &quot;{notFoundWord.toUpperCase()}&quot; — FINGERSPELLING NOT YET
-          AVAILABLE
+          SKIPPED: {skippedWords.map((w) => `"${w.toUpperCase()}"`).join(", ")} (NOT FOUND) —
+          FINGERSPELLING NOT YET AVAILABLE
+        </div>
+      ) : null}
+
+      {missingMessage ? (
+        <div className={styles.oovBanner} role="status" aria-live="polite">
+          {missingMessage}
+          <br />
+          FINGERSPELLING NOT YET AVAILABLE
         </div>
       ) : null}
 
       <div className={styles.mainRow}>
         <div className={styles.glossArea}>
-          {glossWord ? (
-            <h1 className={styles.glossWord}>{glossWord}</h1>
+          {captionWords.length > 0 ? (
+            <div className={styles.wordRow}>
+              {captionWords.map((w, i) =>
+                w.isActive ? (
+                  <h1 key={i} className={styles.glossWord}>
+                    {w.text}
+                  </h1>
+                ) : (
+                  <span
+                    key={i}
+                    className={`${styles.wordChip} ${
+                      w.kind === "skipped" ? styles.wordChipSkipped : ""
+                    } ${w.kind === "low_confidence" ? styles.wordChipLowConfidence : ""}`}
+                  >
+                    {w.text}
+                  </span>
+                )
+              )}
+            </div>
           ) : (
             <p className={styles.glossPlaceholder}>ENTER A WORD BELOW TO BEGIN</p>
           )}

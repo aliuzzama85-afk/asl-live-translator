@@ -32,6 +32,14 @@
   min-width: 0;
 }
 
+.wordRow {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  column-gap: var(--space-4);
+  row-gap: var(--space-1);
+}
+
 .glossWord {
   font-family: var(--font-family-display);
   font-weight: var(--font-display-weight);
@@ -41,6 +49,24 @@
   color: var(--color-text-primary);
   text-transform: uppercase;
   word-break: break-word;
+}
+
+.wordChip {
+  font-family: var(--font-family-mono);
+  font-weight: var(--font-label-weight);
+  font-size: var(--font-label-size);
+  letter-spacing: var(--font-label-letter-spacing);
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.wordChipLowConfidence {
+  color: var(--color-signal-error);
+}
+
+.wordChipSkipped {
+  color: var(--color-signal-error);
+  text-decoration: line-through;
 }
 
 .glossPlaceholder {

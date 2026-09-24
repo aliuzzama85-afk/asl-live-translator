@@ -25,10 +25,33 @@ const STATE_CONFIG = {
  *   this stage's own fetch time, per PLAN.md -- never a simulated
  *   end-to-end pipeline number.
  * @param {boolean} props.reducedMotion - Disables the LED pulse animation.
+ * @param {number} [props.wordCount] - Words in the current sequence, for
+ *   the "N/M WORDS (K SKIPPED)" label suffix (per
+ *   `frontend/MULTIWORD_PLAN.md` Section 5). Only shown when there's more
+ *   than one word or at least one skip, so a plain single clean or
+ *   low-confidence word still reads as the original bare "READY"/
+ *   "LOW-CONFIDENCE SIGN" label, unchanged.
+ * @param {number} [props.skippedCount] - Words skipped (not found) in the
+ *   current sequence.
  */
-export function StatusStrip({ state, latencyMs, reducedMotion }) {
+export function StatusStrip({ state, latencyMs, reducedMotion, wordCount = 0, skippedCount = 0 }) {
   const config = STATE_CONFIG[state] ?? STATE_CONFIG.idle;
   const pulsing = state === "loading" && !reducedMotion;
+
+  // The composite "N/M WORDS (K SKIPPED)" count is independent of which
+  // dot color/state is showing -- a low-confidence word among an otherwise
+  // playing sequence still gets an informative "READY — ..." label (the
+  // low-confidence nuance itself is surfaced separately, in detail, by
+  // CaptionBand's own low-confidence banner) rather than silently losing
+  // the count info just because `state` isn't literally "ready". Only a
+  // genuinely single, unremarkable word (no skips) keeps the original bare
+  // per-state label.
+  let label = config.label;
+  const isSingleUnremarkableWord = wordCount <= 1 && skippedCount === 0;
+  if ((state === "ready" || state === "low_confidence") && !isSingleUnremarkableWord) {
+    const playable = wordCount - skippedCount;
+    label = `READY — ${playable}/${wordCount} WORDS${skippedCount > 0 ? ` (${skippedCount} SKIPPED)` : ""}`;
+  }
 
   return (
     <header className={styles.strip}>
@@ -37,7 +60,7 @@ export function StatusStrip({ state, latencyMs, reducedMotion }) {
           className={`${styles.dot} ${styles[config.dotClass]} ${pulsing ? styles.pulse : ""}`}
           aria-hidden="true"
         />
-        <span className={styles.label}>{config.label}</span>
+        <span className={styles.label}>{label}</span>
       </div>
       <div className={styles.latency}>
         <span className={styles.latencyLabel}>FETCH</span>

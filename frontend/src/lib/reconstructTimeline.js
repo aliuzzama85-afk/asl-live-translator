@@ -58,12 +58,17 @@ function isZeroPoint(point) {
  * motion at all (mirrors the renderer's own zero-point skip rule from
  * PLAN.md Section 1, applied here so it can't be defeated by interpolation).
  *
+ * Exported (per `frontend/MULTIWORD_PLAN.md` Section 3) so
+ * `stitchTimelines.js` can reuse this exact zero-point-aware lerp for
+ * cross-word transitions and fixed-fps resampling, instead of
+ * reimplementing the same guard a second time.
+ *
  * @param {Array<[number, number, number]>} poseA - Pose at t=0.
  * @param {Array<[number, number, number]>} poseB - Pose at t=1.
  * @param {number} t - Interpolation fraction in [0, 1].
  * @returns {Array<[number, number, number]>} The interpolated pose.
  */
-function lerpPose(poseA, poseB, t) {
+export function lerpPose(poseA, poseB, t) {
   return poseA.map((pointA, i) => {
     const pointB = poseB[i];
     if (isZeroPoint(pointA) || isZeroPoint(pointB)) {
