@@ -1,6 +1,7 @@
 # Project Status
 
-Last updated: 2026-09-25 (ASLG-PC12 licensing checked — see Section 5 item 3).
+Last updated: 2026-09-25 (build-order step 3, multi-word playback with
+cross-sign interpolation, done — see Section 12).
 Stage 5 formally signed off 2026-09-22 — see Section 11; Stage 4 also
 complete — see Section 10.
 This is a living status doc — update it at the end of a session with
@@ -21,7 +22,7 @@ to pick up exactly where things stand.
 | 2. VAD chunking | **Not started** | `pipeline/vad.py` doesn't exist yet. |
 | 3. Gloss translation | **Done — signed off 2026-09-10** | See Section 9. `gloss_model/checkpoints_v2/` is the model to use going forward, superseding v1. |
 | 4. Gloss-to-pose lookup | **Done — see Section 10** | 118-word pose library built from WLASL + MediaPipe, 61 tests passing. Fingerspelling fallback and the WLASL/C-UDA licensing question are still open — see Section 5. |
-| 5. Rendering (frontend) | **Done — signed off 2026-09-22, see Section 11** | Single-word skeleton renderer, feature-complete per `frontend/PLAN.md`'s v1 scope, 25/25 tests passing (`a024993`). Multi-word playback (build-order step 3) is next, not yet started. |
+| 5. Rendering (frontend) | **Done — signed off 2026-09-22, see Section 11** | Single-word skeleton renderer, feature-complete per `frontend/PLAN.md`'s v1 scope, 25/25 tests passing (`a024993`). Multi-word playback with cross-sign interpolation (build-order step 3) built on top of this — see Section 12. |
 
 ### Stage 3 completion criteria — all met, signed off 2026-09-10 (see Section 9)
 - All planned modules exist and work: `gloss_model/{config,data_prep,evaluate,train,inference}.py`.
@@ -244,9 +245,9 @@ three are also logged in `CLAUDE.md`'s "Known gotchas / decisions log".
    `get_fingerspelling_sequence()`/`resolve_gloss_word()`; none of this
    exists yet, so an OOV gloss word today gets a "not yet available" message
    rather than a fingerspelled fallback. See Section 10.
-8. **Multi-word / cross-sign interpolation — not started.** This is
-   CLAUDE.md's build-order step 3, distinct from (and not begun by) the
-   Stage 4/5 work this update covers. See Section 11 and Section 6.
+8. ~~Multi-word / cross-sign interpolation — not started.~~ **Resolved
+   2026-09-25** — designed (`frontend/MULTIWORD_PLAN.md`, `f4fdc82`) and
+   built (`7125800`), 40/40 tests passing. See Section 12.
 9. **Stage 1/2 (live ASR + VAD) — not started**, per CLAUDE.md's build order
    (step 4, after step 3 above).
 
@@ -254,23 +255,29 @@ three are also logged in `CLAUDE.md`'s "Known gotchas / decisions log".
 
 ## 6. Exact next steps, in order
 
-Stage 4 (Section 10) and Stage 5 (Section 11) are both done. Per CLAUDE.md's
-build order, the next official step is **step 3: interpolation/smoothing
-between signs** (multi-word sentence playback, cross-word transition
-blending) — **not** Stage 1/2 live speech, which is step 4. Nothing about
-this has been designed yet:
+Stage 4 (Section 10), Stage 5 (Section 11), and build-order step 3
+(multi-word playback with cross-sign interpolation, Section 12) are all
+done. Per CLAUDE.md's build order, the next official step is **step 4:
+live speech input** (Stage 1/2 — streaming ASR + Silero VAD) wired to the
+now-working core. Nothing about this has been designed yet:
 
-1. **Design multi-word playback**: how a sequence of gloss words becomes a
-   played sentence. Likely needs the in-memory queue CLAUDE.md's architecture
-   section describes (so playback doesn't block on translation), and a
-   cross-word blending approach analogous to `reconstructTimeline.js`'s
-   existing within-word gap interpolation — but `frontend/PLAN.md` Section 4
-   was explicit that nothing in Stage 5's data model or component boundaries
-   should be assumed to have solved this yet.
-2. **Write tests alongside**, per CLAUDE.md's testing rule, before moving on
-   to Stage 1/2.
+1. **Design Stage 1/2**: streaming ASR (Deepgram or AssemblyAI,
+   `pipeline/asr.py`) and Silero VAD-based phrase chunking
+   (`pipeline/vad.py`), per `CLAUDE.md`'s architecture section — including
+   the in-memory queue so playback never blocks on translation, and how a
+   live phrase's gloss output feeds the multi-word sequence
+   `frontend/MULTIWORD_PLAN.md`/Section 12 already built the playback side
+   for (that side takes an already-glossed word sequence; this step is
+   about producing one live, not consuming it).
+2. **Write tests alongside**, per CLAUDE.md's testing rule.
 
-Loose ends, not blocking step 3 but worth closing out when convenient:
+Loose ends, not blocking step 4 but worth closing out when convenient:
+- **"Phantom static hand" rendering characteristic** (Section 12): a
+  one-handed word's unused hand renders as a static cluster at the
+  projected origin instead of being invisible, confirmed pre-existing in
+  Stage 5's single-word playback too, not just multi-word transitions. Not
+  fixed; a real fix (skip-drawing a zero-sentinel hand, or fading it) is
+  future work if it turns out to matter visually in practice.
 - **Fingerspelling alphabet** (Section 5 item 7, Section 10): self-record
   the 26 letters, implement `resolve_gloss_word()`.
 - **WLASL/C-UDA licensing decision** (Section 5 item 6, Section 10): get the
@@ -599,5 +606,115 @@ per `PLAN.md` Section 6, or deferred to a later stage):
   fetch-to-first-frame time only, never a simulated pipeline number.
 
 **Sign-off**: Stage 5 is done. Per CLAUDE.md's build-order rule, the next
-step is multi-word/cross-sign interpolation (build-order step 3), not yet
-started — see Section 6.
+step was multi-word/cross-sign interpolation (build-order step 3) — now
+done, see Section 12.
+
+---
+
+## 12. Build-order step 3: multi-word playback with cross-sign interpolation — done (2026-09-25)
+
+Per `CLAUDE.md`'s build order, step 3 ("interpolation/smoothing between
+signs") is now complete: a short, already-glossed sequence of words (typed
+space-separated into the same search input single-word mode used) plays
+back as one continuous skeleton animation with smoothed transitions between
+signs, instead of one word at a time. Designed in
+`frontend/MULTIWORD_PLAN.md` (`f4fdc82`, two clarifications added and
+reviewed before implementation) and built in `7125800`. This is a pure
+playback/animation-stitching feature — no ASL grammar/reordering, no live
+ASR/VAD (still build-order step 4, next, see Section 6).
+
+**What was built** (`frontend/src/`), file by file:
+
+- **`hooks/usePoseSequences.js`** (new) — batch version of
+  `usePoseSequence`: fetches `/poses/manifest.json` **once** per submitted
+  sequence (not once per word) plus every word's own `/poses/<word>.json`,
+  all dispatched simultaneously; returns one discriminated-union result per
+  word plus a sequence-level `idle`/`loading`/`ready`/`error` status. A
+  manifest-fetch failure surfaces as a sequence-level `error`, distinct
+  from any one word's own `not_found`/`error`.
+- **`hooks/usePoseSequence.js`** — refactored, not behaviorally changed:
+  the shared fetch-and-classify logic was extracted into an exported
+  `fetchWordPoseResult(word, manifest, sequenceFetch)`, used by both this
+  hook and `usePoseSequences`, while this hook's own manifest + word-JSON
+  requests are still dispatched simultaneously exactly as before the
+  extraction (no added latency, no behavior change).
+- **`lib/stitchTimelines.js`** (new) — resamples each word's own
+  `reconstructTimeline()` output (unchanged) onto a shared fixed 30fps
+  grid, then inserts 200ms of `lerpPose`-interpolated transition frames at
+  each word boundary, reusing the exact same zero-point-aware lerp
+  `reconstructTimeline.js` already had (now exported for this reuse).
+  Output is the identical `Timeline` shape the single-word renderer already
+  consumed, so `SkeletonCanvas.jsx` needed no changes to its core playback
+  loop. Transition frames are attributed to the word they lead *into*, so
+  the returned `wordBoundaries` spans are contiguous and gapless across the
+  whole merged timeline.
+- **`components/SkeletonCanvas.jsx`** — the one change: an optional
+  `onFrameChange(frameIndex)` callback, fired every tick, so `App.jsx` can
+  map the currently-playing frame to a word via `wordBoundaries` without
+  `SkeletonCanvas` itself needing any concept of "words."
+- **`App.jsx`** — generalized to always treat its input as a sequence (a
+  single typed word is simply a sequence of length 1); filters `not_found`
+  words out before calling `stitchTimelines` (so a `not_found` word never
+  needs its own transition handling — the words on either side just become
+  adjacent and get one ordinary transition); a per-word or manifest-level
+  `error` still aborts the whole sequence, while `not_found` words are
+  skipped and listed visibly, not aborting.
+- **`components/CaptionBand.jsx`** — multi-word search input
+  (space-separated, capped at 20 words per `CLAUDE.md`'s input
+  length-limiting rule, truncation surfaced visibly not silently), a
+  word-progress row (active/low-confidence/skipped styling per word), and
+  skipped/low-confidence/truncated banners generalized from the original
+  single-word banners.
+- **`components/StatusStrip.jsx`** — added a composite
+  "READY — N/M WORDS (K SKIPPED)" label, shown whenever there's more than
+  one word or a skip; a single clean or low-confidence word keeps its
+  original bare label unchanged.
+
+**Tests**: 40/40 passing across 5 files — the original 11
+`reconstructTimeline.test.js` and 12 `skeletonBones.test.js` tests
+unchanged; the 3 original `App.test.jsx` single-word tests still pass under
+the generalized implementation (real regression coverage, not rewritten);
+2 new `App.test.jsx` tests (a real mid-sequence `not_found` word against
+the actual manifest, and an all-missing fallback); 7 new
+`stitchTimelines.test.js` tests; 6 new `usePoseSequences.test.js` tests.
+`eslint .` clean (0 errors/warnings — one real `react-hooks/exhaustive-deps`
+warning was found and fixed, a misplaced `eslint-disable-next-line`
+comment), `prettier --check` clean on all new/changed files.
+
+**A real bug found and fixed during implementation, not anticipated in the
+plan**: `StatusStrip`'s word-count/skip-count label was initially gated on
+`state === "ready"` only, silently dropping that info whenever the sequence
+included a `low_confidence` word (since that state took precedence over
+`ready`). Fixed by decoupling the composite label text from the dot's
+semantic color/state.
+
+**Known limitation, documented not fixed — the "phantom static hand"
+visual characteristic**: confirmed by reading `lerpPose` and
+`SkeletonCanvas.jsx`'s draw loop directly (see `MULTIWORD_PLAN.md`'s "Known
+gotchas"), not assumed. A hand that's the `(0,0,0)` "not detected" sentinel
+for an entire word (a one-handed sign's unused hand) is **not**
+skip-drawn by the renderer — only the 6 pose-subset landmarks get that
+treatment, never hand landmarks. So that hand's joints/bones render as a
+static, motionless cluster at the projected origin coordinate for as long
+as it stays zero, then pop in abruptly (no fade) the instant playback
+reaches a frame where that hand has real tracked data. **This is not a new
+bug introduced by multi-word stitching** — the identical phantom-point
+rendering already happens throughout a one-handed word's own single-word
+playback today (Stage 5, already shipped, `3744355`/`b5138da`) — stitching
+only means the same characteristic is also present, unchanged, during the
+inserted transition frames. Not fixed in this pass; a real fix
+(skip-drawing a zero-sentinel hand entirely, or fading it in/out) is future
+work if it turns out to matter visually in practice, not blocking anything.
+
+**Explicitly out of scope for this pass**, per `MULTIWORD_PLAN.md` Section
+6: ASL grammar/gloss reordering (a separate NLP problem — words are
+stitched in the order given, verbatim), live ASR/VAD wiring (build-order
+step 4, next), fingerspelling for skipped words (still not built, see
+Section 5 item 7), variable/linguistically-informed transition duration
+(one fixed 200ms for every boundary), non-manual/facial coarticulation (no
+such data exists), scrubbing/seeking, mid-playback sequence editing, and
+cross-submission caching.
+
+**Sign-off**: build-order step 3 is done. Per `CLAUDE.md`'s build-order
+rule, the next step is **step 4: live speech input** (Stage 1/2, ASR +
+VAD), wired to this now-working core — not yet started, see Section 6.
