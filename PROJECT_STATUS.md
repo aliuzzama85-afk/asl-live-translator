@@ -1,7 +1,8 @@
 # Project Status
 
-Last updated: 2026-09-22 (Stage 5 formally signed off — see Section 11;
-Stage 4 also complete — see Section 10).
+Last updated: 2026-09-25 (ASLG-PC12 licensing checked — see Section 5 item 3).
+Stage 5 formally signed off 2026-09-22 — see Section 11; Stage 4 also
+complete — see Section 10.
 This is a living status doc — update it at the end of a session with
 meaningful progress. `CLAUDE.md` stays static (conventions/architecture/
 security rules); this file tracks what's actually been built and what's left.
@@ -172,10 +173,59 @@ three are also logged in `CLAUDE.md`'s "Known gotchas / decisions log".
    downloaded to `gloss_model/checkpoints/` earlier, and v2 (the current model)
    is at `gloss_model/checkpoints_v2/`. Both are gitignored (never committed —
    242MB+ each), present on disk only.
-3. **Licensing of ASLG-PC12** (flagged in PLAN.md, never resolved): not checked
-   against the HF dataset page or the original achrafothman.net release. Not
-   blocking local prototyping, but should happen before any public release.
-   **Still open as of 2026-09-22.**
+3. **Licensing of ASLG-PC12 — checked 2026-09-25, license identified but a
+   deeper provenance question is now open, not resolved.**
+   `gloss_model/config.py:25` sources the dataset as
+   `achrafothman/aslg_pc12` via HF `datasets.load_dataset()`.
+   - **The HF dataset page's own card is internally inconsistent**: its
+     structured metadata (`README.md` YAML frontmatter, driving the sidebar
+     badge) declares `license: cc-by-nc-4.0`, but the card's own prose
+     "Licensing Information" section says "More Information Needed" — same
+     for "Curation Rationale," "Source Data," "Dataset Curators." The card
+     was added to the Hub by a third party (`@AmitMY`), not the original
+     authors.
+   - **Checked the authoritative primary source directly**:
+     `achrafothman.net/site/asl-smt/` (Dr. Achraf Othman's own release page,
+     linked as the HF card's "Homepage") states verbatim: *"English-ASL
+     Gloss Parallel Corpus 2012: ASLG-PC12 by Dr. Achraf Othman is licensed
+     under Attribution-NonCommercial 4.0 International."* This corroborates
+     the HF tag from the primary source (CC BY-NC 4.0, no ShareAlike),
+     despite the empty card section.
+   - **What CC BY-NC 4.0 actually says** (read from the [legal
+     code](https://creativecommons.org/licenses/by-nc/4.0/legalcode), not a
+     summary): attribution is required (Section 3(a)); the license grants
+     rights "for NonCommercial purposes only" (Section 2(a)(1)), covering
+     *both* the original material and "Adapted Material" (material derived
+     from/based on it). Whether a model fine-tuned on this data legally
+     counts as "Adapted Material" under copyright law is an unsettled,
+     interpretive question — not resolved here, not a judgment this doc
+     makes. If it does count, the license's own text restricts sharing it to
+     NonCommercial purposes, same as the source data. No research-only
+     carve-out or public-domain claim exists anywhere in either source — a
+     standard CC BY-NC 4.0 grant, nothing narrower or broader.
+   - **The `VOCAB_DIAGNOSIS.md` Europarl finding changes the picture, and is
+     not resolved by the above.** `VOCAB_DIAGNOSIS.md`'s addendum
+     established that this specific 87,710-row dataset's English text reads
+     as Europarl (EU Parliament proceedings), not Gutenberg literary text as
+     Othman & Jemni's own paper claims its source is. Checked Europarl's own
+     terms directly at `statmt.org/europarl/`: *"We are not aware of any
+     copyright restrictions of the material"* — a disclaimer of awareness,
+     not an affirmative open-license grant, and a materially weaker basis
+     than a real license. Othman's CC BY-NC 4.0 claim is over *his own
+     compiled/annotated corpus*, premised (per his paper) on the underlying
+     English text coming from Gutenberg. If the actual underlying text is
+     Europarl proceedings instead, that's a different, unverified chain of
+     title: it's unclear he held clean rights to apply his own license over
+     text that — per this project's own independent finding — doesn't match
+     what he described it as. Neither the CC BY-NC 4.0 grant nor Europarl's
+     "not aware of restrictions" statement closes this gap.
+   - **Net effect**: the license *label* is now identified with reasonable
+     confidence (CC BY-NC 4.0, checked at the primary source, not just
+     inferred from the HF tag) — but the provenance mismatch this project
+     independently discovered raises a real, unresolved question about
+     whether that label was validly applied to begin with. **Not fully
+     resolved; needs the user's explicit sign-off before any public release,
+     same as the WLASL/C-UDA item below** — not blocking local prototyping.
 4. ~~README.md limitation note~~ **Resolved 2026-09-22** — added to
    README.md (rule-generated, Europarl-register-corpus quality ceiling).
 5. ~~Stage 4 approach itself is entirely undiscussed~~ **Resolved** — Stage 4
@@ -226,7 +276,10 @@ Loose ends, not blocking step 3 but worth closing out when convenient:
 - **WLASL/C-UDA licensing decision** (Section 5 item 6, Section 10): get the
   user's explicit sign-off on the current local-only policy, or resolve the
   ambiguity, before any public/commercial step.
-- **ASLG-PC12 licensing check** (Section 5 item 3): still unchecked.
+- **ASLG-PC12 licensing sign-off** (Section 5 item 3): license identified
+  (CC BY-NC 4.0, checked 2026-09-25) but the Europarl-provenance question it
+  raised needs the user's explicit sign-off before any public release, same
+  as the WLASL item above.
 
 ---
 
