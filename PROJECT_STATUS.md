@@ -287,6 +287,9 @@ Loose ends, not blocking step 4 but worth closing out when convenient:
   (CC BY-NC 4.0, checked 2026-09-25) but the Europarl-provenance question it
   raised needs the user's explicit sign-off before any public release, same
   as the WLASL item above.
+- **Automated layout/visual regression testing (e.g. Playwright)** — not
+  yet added; manual browser checks are the only current safeguard against
+  this class of bug (see the Section 11 amendment).
 
 ---
 
@@ -609,6 +612,13 @@ per `PLAN.md` Section 6, or deferred to a later stage):
 step was multi-word/cross-sign interpolation (build-order step 3) — now
 done, see Section 12.
 
+**Amendment 2026-09-25**: a layout bug (`SkeletonCanvas.module.css`)
+present since this stage's first commit (`3744355`) caused the rendered
+canvas to overflow its container and appear over-zoomed on real viewports;
+never caught by the automated test suite since happy-dom has no layout
+engine. Found and fixed during build-order step 3's manual browser testing.
+See Section 12.
+
 ---
 
 ## 12. Build-order step 3: multi-word playback with cross-sign interpolation — done (2026-09-25)
@@ -705,6 +715,40 @@ only means the same characteristic is also present, unchanged, during the
 inserted transition frames. Not fixed in this pass; a real fix
 (skip-drawing a zero-sentinel hand entirely, or fading it in/out) is future
 work if it turns out to matter visually in practice, not blocking anything.
+
+**Two camera/rendering bugs found in manual browser testing after
+`7125800`, fixed together** (45/45 tests passing after the fix):
+
+1. **A pre-existing Stage 5 layout bug, not a multi-word regression.**
+   Every playback — single-word "bathroom" alone included — rendered as a
+   few oversized bone segments filling the stage. Confirmed pre-existing by
+   reproducing it on the clean committed code (working-tree changes
+   stashed). Per-frame logging showed the camera math was correct (hand
+   bounds ~0.07×0.18, camera span settling ~0.24, i.e. a whole hand at ~75%
+   of canvas height); the canvas itself was the problem — 1167px square
+   inside a 498px-tall stage at a 1280×720 viewport. `.stage`'s row flexbox
+   (`align-items: center`) never gave `.stageWrapper` a definite height, so
+   the bezel's `height: 100%`/`max-height: 100%` resolved to `auto` and
+   `aspect-ratio: 1 / 1` sized the square off the stage's *width*,
+   overflowing vertically on any landscape viewport and cropping the canvas
+   to its middle slice. Fixed in `SkeletonCanvas.module.css`
+   (`align-self: stretch` + `container-type: size` on `.stageWrapper`, a
+   `min(100cqw, 100cqh)` square on `.bezel`); verified at 1280×720 and
+   375×812. See the Section 11 amendment and `CLAUDE.md`'s gotchas log for
+   the process lesson (happy-dom can't catch layout bugs).
+2. **`stepCamera()` in `skeletonBones.js`**: a cross-word transition
+   between two signs that use *different* hands (e.g. `about`, left-only →
+   `bathroom`, right-only) zeroes *both* hands for the whole transition via
+   `lerpPose`'s zero-endpoint guard, so `computeContentBounds` fell back to
+   the full `[0,1]` frame and the camera zoomed out and back at every such
+   boundary. `stepCamera` now holds the camera steady on a frame with no
+   real hand points — confirmed in-browser on "about bathroom doctor
+   angry" (transition frames 68–74 and 167–173 hold exactly). Its effect
+   was invisible until fix 1, which dwarfed it.
+
+Also observed, not a bug: "angry" zooms out to a near-full-frame shot
+(camera span ~1.0) on frames where both hands are genuinely tracked far
+apart (x ≈ 0.16–0.89) — the fit correctly includes both hands.
 
 **Explicitly out of scope for this pass**, per `MULTIWORD_PLAN.md` Section
 6: ASL grammar/gloss reordering (a separate NLP problem — words are

@@ -135,3 +135,14 @@ design decision, a gotcha), update this file before ending the session.
   `generation_config.json` still carries T5's stock `max_length: 20` default
   (harmless today since every caller passes `max_length` explicitly, but a
   footgun for any future caller that doesn't).
+- **happy-dom component tests cannot catch real CSS layout bugs** (sizing,
+  overflow, `aspect-ratio`/flexbox interactions) — it has no layout engine.
+  A `SkeletonCanvas.module.css` bug shipped in Stage 5's first commit and
+  went unnoticed through two stages of work with a fully green suite: the
+  canvas sized itself off the stage's width, overflowed vertically, and
+  every sign rendered as an over-zoomed fragment. Any future rendering/
+  canvas/layout work must include a manual visual check in a real browser
+  (ideally at both a landscape and a phone viewport) before it's considered
+  done — a green test suite alone is not sufficient. Automated visual/layout
+  testing (e.g. Playwright) is a deferred follow-up; see `PROJECT_STATUS.md`
+  Sections 6, 11 and 12.

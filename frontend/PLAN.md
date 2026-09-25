@@ -593,3 +593,9 @@ utility-class generation to reason about.
   should fail into the same visible "no data" state (not a silent blank
   screen or an uncaught fetch error) whether the cause is "word not in
   library" or "library not built yet on this machine."
+- **Fixed 2026-09-25 — the Stage bezel overflowed on landscape viewports**:
+  `aspect-ratio: 1 / 1` + an unresolvable `height: 100%` sized the square
+  canvas off the stage's width, cropping it and making every sign look
+  over-zoomed; now a `min(100cqw, 100cqh)` square in a size container
+  (`SkeletonCanvas.module.css`). See `CLAUDE.md`'s gotchas log for the
+  lesson (happy-dom tests can't catch layout bugs; check in a real browser).
