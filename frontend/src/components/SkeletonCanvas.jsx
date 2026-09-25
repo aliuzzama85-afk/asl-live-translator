@@ -7,6 +7,7 @@ import {
   filterOutPoseSubset,
   isUndetectedPoint,
   projectPoint,
+  stepCamera,
 } from "../lib/skeletonBones.js";
 import styles from "./SkeletonCanvas.module.css";
 
@@ -183,13 +184,13 @@ export function SkeletonCanvas({
       // around with every small hand movement). Reduced-motion users get an
       // immediate snap instead (alpha=1) -- still re-fit per frame for
       // legibility, just without the continuous panning/zooming motion.
-      const handPose = filterOutPoseSubset(pose, topology.isPoseSubsetByIndex);
-      const rawFit = computeFitTransform(computeContentBounds([handPose]));
+      // `stepCamera` holds the camera steady, rather than chasing
+      // `computeContentBounds`' full-frame fallback, on a frame with no
+      // trackable hand content at all (a cross-word transition between two
+      // differently-handed signs) -- see its own docstring.
       const camera = cameraRef.current;
       const smoothingAlpha = reducedMotion ? 1 : CAMERA_SMOOTHING_ALPHA;
-      camera.centerX = lerp(camera.centerX, rawFit.centerX, smoothingAlpha);
-      camera.centerY = lerp(camera.centerY, rawFit.centerY, smoothingAlpha);
-      camera.span = lerp(camera.span, rawFit.span, smoothingAlpha);
+      stepCamera(camera, pose, topology.isPoseSubsetByIndex, smoothingAlpha);
 
       const colors = readSkeletonColors();
       const dimFactor = dimmed ? 0.5 : 1;

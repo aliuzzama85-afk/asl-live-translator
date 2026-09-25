@@ -1,6 +1,14 @@
+/* Size containment makes this wrapper a query container, so the bezel can
+ * size itself against *both* of its available dimensions (`cqw`/`cqh`)
+ * instead of width alone. `align-self: stretch` gives it a definite height
+ * from `.stage` (a row flexbox whose `align-items: center` would otherwise
+ * shrink it to its content's height). */
 .stageWrapper {
   flex: 1;
+  align-self: stretch;
+  min-width: 0;
   min-height: 0;
+  container-type: size;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -8,12 +16,15 @@
   background-color: var(--color-bg);
 }
 
+/* The largest square that fits the wrapper's content box on both axes.
+ * The previous `height: 100%` + `aspect-ratio: 1 / 1` never resolved (the
+ * wrapper's height was indefinite), so the square was sized from the width
+ * alone and overflowed the stage vertically on any landscape window --
+ * cropping the canvas to a small middle slice that read as an extreme
+ * over-zoom. */
 .bezel {
-  width: min(100%, 100%);
-  height: 100%;
-  aspect-ratio: 1 / 1;
-  max-width: 100%;
-  max-height: 100%;
+  width: min(100cqw, 100cqh);
+  height: min(100cqw, 100cqh);
   border: 1px solid var(--color-hairline);
   display: flex;
   align-items: center;

@@ -245,3 +245,52 @@ export function projectPoint(point, transform, cssSize) {
   const ny = (point[1] - transform.centerY) / transform.span + 0.5;
   return [nx * cssSize, ny * cssSize];
 }
+
+/**
+ * Advances a soft-follow camera one step toward a frame's own real hand
+ * content -- or holds it exactly steady if the frame has *no* trackable
+ * hand content at all.
+ *
+ * Root-caused during multi-word playback (see
+ * `frontend/MULTIWORD_PLAN.md`'s "Known gotchas"): a cross-word transition
+ * frame where `lerpPose` interpolates between two words that use
+ * *different* hands (e.g. one word's last real frame has only its left
+ * hand tracked, the next word's first real frame has only its right)
+ * forces *both* hands to the `(0,0,0)` sentinel for the entire transition
+ * span, per-landmark, per `lerpPose`'s own zero-endpoint guard -- not just
+ * one hand staying a static phantom (the already-documented, narrower
+ * "phantom static hand" case where the *other* hand still tracks
+ * normally). With zero real points anywhere in the frame,
+ * `computeContentBounds` falls back to the full `[0,1]` frame -- easing
+ * toward *that* every such frame causes a jarring zoom-out/zoom-in
+ * oscillation at every hand-switching word boundary, confirmed directly
+ * against the real "about"/"bathroom"/"doctor"/"angry" library data (the
+ * `about`->`bathroom` transition: `about`'s last frame has 21 real left-
+ * hand points and 0 right; `bathroom`'s first frame is the exact mirror).
+ * Holding the camera at its last real position instead -- exactly like
+ * `reconstructTimeline.js`'s own "hold, don't invent" rule for a missing
+ * within-word gap -- keeps it stable through the transition, rather than
+ * chasing a bounding box that doesn't represent any real content.
+ *
+ * @param {{centerX: number, centerY: number, span: number}} camera - The
+ *   current camera state, updated in place (matching the caller's existing
+ *   mutable-ref usage) and also returned for convenience.
+ * @param {Array<[number, number, number]>} pose - The frame's full point
+ *   list (pose-subset landmarks included; filtered out internally).
+ * @param {boolean[]} isPoseSubsetByIndex - From `buildSkeletonTopology`.
+ * @param {number} alpha - Smoothing factor in `(0, 1]`; `1` snaps
+ *   instantly (the `prefers-reduced-motion` case).
+ * @returns {{centerX: number, centerY: number, span: number}} The same
+ *   `camera` object.
+ */
+export function stepCamera(camera, pose, isPoseSubsetByIndex, alpha) {
+  const handPose = filterOutPoseSubset(pose, isPoseSubsetByIndex);
+  if (handPose.every(isUndetectedPoint)) {
+    return camera;
+  }
+  const rawFit = computeFitTransform(computeContentBounds([handPose]));
+  camera.centerX += (rawFit.centerX - camera.centerX) * alpha;
+  camera.centerY += (rawFit.centerY - camera.centerY) * alpha;
+  camera.span += (rawFit.span - camera.span) * alpha;
+  return camera;
+}

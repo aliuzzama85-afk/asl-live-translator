@@ -6,6 +6,7 @@ import {
   filterOutPoseSubset,
   isUndetectedPoint,
   projectPoint,
+  stepCamera,
 } from "./skeletonBones.js";
 
 describe("computeContentBounds", () => {
@@ -151,5 +152,123 @@ describe("filterOutPoseSubset", () => {
       handOnlyBounds.maxY - handOnlyBounds.minY
     );
     expect(handSpan).toBeLessThan(fullSpan / 10);
+  });
+});
+
+describe("stepCamera", () => {
+  const isPoseSubsetByIndex = [false, false, true, true]; // 2 hand points, 2 pose-subset
+
+  it("eases toward a normal frame's real content, same as the original inline math", () => {
+    const camera = { centerX: 0, centerY: 0, span: 1 };
+    const pose = [
+      [0.4, 0.4, 0],
+      [0.6, 0.6, 0],
+      [0, 0, 0],
+      [0, 0, 0],
+    ];
+    const before = { ...camera };
+    const result = stepCamera(camera, pose, isPoseSubsetByIndex, 0.18);
+
+    const rawFit = computeFitTransform(
+      computeContentBounds([filterOutPoseSubset(pose, isPoseSubsetByIndex)])
+    );
+    expect(result.centerX).toBeCloseTo(
+      before.centerX + (rawFit.centerX - before.centerX) * 0.18,
+      10
+    );
+    expect(result.centerY).toBeCloseTo(
+      before.centerY + (rawFit.centerY - before.centerY) * 0.18,
+      10
+    );
+    expect(result.span).toBeCloseTo(before.span + (rawFit.span - before.span) * 0.18, 10);
+  });
+
+  it("mutates and returns the same camera object", () => {
+    const camera = { centerX: 0, centerY: 0, span: 1 };
+    const pose = [
+      [0.4, 0.4, 0],
+      [0.6, 0.6, 0],
+      [0, 0, 0],
+      [0, 0, 0],
+    ];
+    const result = stepCamera(camera, pose, isPoseSubsetByIndex, 0.18);
+    expect(result).toBe(camera);
+  });
+
+  it("holds the camera exactly steady on a frame with zero real hand points, instead of chasing the full-frame fallback", () => {
+    // Both hand landmarks are the (0,0,0) sentinel -- the real, confirmed
+    // shape of a cross-word transition frame between two differently-
+    // handed signs (e.g. "about"'s last frame is left-hand-only,
+    // "bathroom"'s first frame is right-hand-only, so `lerpPose` forces
+    // *both* hands to zero for the whole transition -- see
+    // `frontend/MULTIWORD_PLAN.md`'s "Known gotchas" and `stepCamera`'s
+    // own docstring). Without this fix, `computeContentBounds` would fall
+    // back to the full [0,1] frame here and the camera would snap toward
+    // a huge span, then snap back -- a jarring zoom oscillation at every
+    // such boundary.
+    const camera = { centerX: 0.3, centerY: 0.7, span: 0.2 };
+    const pose = [
+      [0, 0, 0],
+      [0, 0, 0],
+      [0.5, 0.9, 0], // real pose-subset point -- irrelevant, must still be ignored
+      [0, 0, 0],
+    ];
+    const result = stepCamera(camera, pose, isPoseSubsetByIndex, 0.18);
+    expect(result).toEqual({ centerX: 0.3, centerY: 0.7, span: 0.2 });
+  });
+
+  it("resumes easing normally on the very next frame once real hand content returns", () => {
+    const camera = { centerX: 0.3, centerY: 0.7, span: 0.2 };
+    const degenerate = [
+      [0, 0, 0],
+      [0, 0, 0],
+      [0, 0, 0],
+      [0, 0, 0],
+    ];
+    stepCamera(camera, degenerate, isPoseSubsetByIndex, 0.18);
+    expect(camera).toEqual({ centerX: 0.3, centerY: 0.7, span: 0.2 }); // held
+
+    const real = [
+      [0.1, 0.1, 0],
+      [0.2, 0.2, 0],
+      [0, 0, 0],
+      [0, 0, 0],
+    ];
+    stepCamera(camera, real, isPoseSubsetByIndex, 0.18);
+    // Eased away from the held position toward the new real content --
+    // not still frozen, not snapped instantly either.
+    expect(camera.centerX).not.toBe(0.3);
+    expect(camera.centerX).toBeLessThan(0.3);
+    expect(camera.centerX).toBeGreaterThan(0.15);
+  });
+
+  it("an alpha of 1 (reduced motion) snaps to real content, but still holds on a degenerate frame", () => {
+    const camera = { centerX: 0.3, centerY: 0.7, span: 0.2 };
+    const real = [
+      [0.1, 0.1, 0],
+      [0.2, 0.2, 0],
+      [0, 0, 0],
+      [0, 0, 0],
+    ];
+    stepCamera(camera, real, isPoseSubsetByIndex, 1);
+    const rawFit = computeFitTransform(
+      computeContentBounds([
+        [
+          [0.1, 0.1, 0],
+          [0.2, 0.2, 0],
+        ],
+      ])
+    );
+    expect(camera.centerX).toBeCloseTo(rawFit.centerX, 10);
+
+    const degenerate = [
+      [0, 0, 0],
+      [0, 0, 0],
+      [0, 0, 0],
+      [0, 0, 0],
+    ];
+    const before = { ...camera };
+    stepCamera(camera, degenerate, isPoseSubsetByIndex, 1);
+    expect(camera).toEqual(before); // still held, even at alpha=1
   });
 });
