@@ -146,3 +146,8 @@ design decision, a gotcha), update this file before ending the session.
   done — a green test suite alone is not sufficient. Automated visual/layout
   testing (e.g. Playwright) is a deferred follow-up; see `PROJECT_STATUS.md`
   Sections 6, 11 and 12.
+- **gitleaks pre-commit hook lives in `.githooks/pre-commit`** (tracked), enabled
+  per clone via `git config core.hooksPath .githooks` — `setup_env.sh`/`.ps1` do
+  this. It blocks the commit if gitleaks isn't found (set `GITLEAKS_BIN` if it's
+  installed but not on PATH, e.g. a shell started before a `winget install`).
+  Retroactive full-history scan on 2026-09-25: 33 commits, no leaks.

@@ -1,0 +1,2 @@
+# Git hooks run under sh; CRLF would break the shebang on Windows checkouts.
+.githooks/* text eol=lf

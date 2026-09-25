@@ -23,5 +23,8 @@ Write-Host "Installing requirements..."
 Write-Host "Running pip-audit..."
 & (Join-Path $venvPath "Scripts\pip-audit.exe")
 
+Write-Host "Enabling the gitleaks pre-commit hook (.githooks/)..."
+git config core.hooksPath .githooks
+
 Write-Host ""
 Write-Host "Done. Activate with:  .\$venvPath\Scripts\Activate.ps1"

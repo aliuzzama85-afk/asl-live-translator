@@ -1,0 +1,18 @@
+#!/bin/sh
+# Pre-commit secret scan -- CLAUDE.md security rules: gitleaks, no exceptions.
+# Scans only the staged changes; blocks the commit on any finding.
+#
+# Enabled per clone by setup_env.sh / setup_env.ps1, or manually:
+#   git config core.hooksPath .githooks
+#
+# Set GITLEAKS_BIN to point at the binary if it isn't on PATH.
+
+GITLEAKS="${GITLEAKS_BIN:-$(command -v gitleaks 2>/dev/null)}"
+
+if [ -z "$GITLEAKS" ]; then
+  echo "pre-commit: gitleaks not found on PATH -- commit blocked." >&2
+  echo "  Install it (e.g. 'winget install Gitleaks.Gitleaks') or set GITLEAKS_BIN." >&2
+  exit 1
+fi
+
+exec "$GITLEAKS" git --pre-commit --staged --redact --no-banner --verbose

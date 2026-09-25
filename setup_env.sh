@@ -32,5 +32,8 @@ echo "Installing requirements..."
 echo "Running pip-audit..."
 "$PIP_AUDIT"
 
+echo "Enabling the gitleaks pre-commit hook (.githooks/)..."
+git config core.hooksPath .githooks
+
 echo ""
 echo "Done. Activate with:  source $ACTIVATE"
