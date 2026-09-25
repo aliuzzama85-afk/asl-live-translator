@@ -26,3 +26,7 @@ gloss_model/checkpoints*/
 
 # OS
 .DS_Store
+
+# Claude Code local-only config (keep .claude/agents/ and settings.json tracked)
+.claude/launch.json
+.claude/settings.local.json
