@@ -24,5 +24,12 @@ module.exports = {
       },
     ],
     "react/react-in-jsx-scope": "off",
+    // Props are documented with JSDoc on every component (e.g.
+    // CaptionBand.jsx). Enforcing prop-types would add the prop-types runtime
+    // dependency for checks nothing reads. Turned off deliberately: until
+    // 2026-09-26 the lint script never linted .jsx files at all (ESLint 8
+    // only picks up .js by default without --ext), which hid this rule
+    // firing 42 times.
+    "react/prop-types": "off",
   },
 };
