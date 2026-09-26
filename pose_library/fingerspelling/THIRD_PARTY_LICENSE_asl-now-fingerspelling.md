@@ -3,8 +3,14 @@
 The fingerspelling letters in `pose_library/fingerspelling/poses/` whose
 manifest `source` is `hf:sid220/asl-now-fingerspelling` are converted from
 this dataset. This file is the durable local record of where they came from
-and under what terms, so it travels with the data (the same practice this
-project follows for WLASL's C-UDA and ASLG-PC12's CC BY-NC 4.0).
+and under what terms, so it travels with the data. It is this project's first
+standalone license file for a data source: WLASL's C-UDA terms are recorded in
+`pose_library/PLAN.md` Section 1, `PROJECT_STATUS.md` Section 5, and a
+per-entry license tag in the (gitignored, local-only) WLASL manifest, and
+ASLG-PC12's CC BY-NC 4.0 in `PROJECT_STATUS.md` Section 5 and `README.md`.
+This dataset gets its own file because it is redistributed here (converted
+letters and test fixtures are committed), and MIT requires the copyright and
+permission notice to accompany copies.
 
 | | |
 |---|---|
@@ -35,8 +41,9 @@ license requires the copyright notice and permission notice to be kept with
 copies, so the notice below is taken from the author's own project repository,
 [github.com/Sid220/asl-now](https://github.com/Sid220/asl-now). That's the
 ASLNow! app this dataset was collected for, and its README links to this exact
-dataset. Its [`LICENSE`](https://github.com/Sid220/asl-now/blob/main/LICENSE)
-(added in commit `172ee6d54f71`, 2023-12-22) reads, verbatim:
+dataset. Its [`LICENSE`](https://github.com/Sid220/asl-now/blob/main/LICENSE),
+as of its current version on `main` (first added in commit `84ac5d06cda2`,
+last changed in `172ee6d54f71`, both 2023-12-22), reads, verbatim:
 
 ```
 Copyright 2024 Sidney Trzepacz
