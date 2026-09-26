@@ -311,8 +311,9 @@ Loose ends, not blocking step 4 but worth closing out when convenient:
   location — pass `--init-checkpoint`/`checkpoint_dir=` explicitly to use v2),
   or `/kaggle/working/gloss_model_checkpoints/` on Kaggle (detected via that
   path's existence).
-- **Kaggle**: no remote git repo configured for this project (`git remote -v`
-  is empty) — the hand-off method used was zipping git-tracked source
+- **Kaggle**: at the time of the Kaggle runs no remote git repo was
+  configured (one exists now — see **Git** below), so the hand-off method used
+  was zipping git-tracked source
   (`git archive --format=zip -o asl-live-translator-src.zip HEAD gloss_model requirements.txt`)
   and uploading it as a Kaggle Dataset named `asl-live-translator-src`, attached
   to the training notebook as an input (mounted read-only at
@@ -333,8 +334,10 @@ Loose ends, not blocking step 4 but worth closing out when convenient:
   versions (see bug #1 in Section 4). `torch` is intentionally left as `>=2.2`
   with a comment not to force-reinstall it on Kaggle (would risk clobbering
   Kaggle's preinstalled CUDA-enabled build).
-- **Git**: local repo only, no remote. Latest commit at the time of writing is
-  `4750dd0` — run `git log --oneline` for the current head.
+- **Git**: pushed to GitHub at
+  `https://github.com/aliuzzama85-afk/asl-live-translator` (`origin`); local
+  `main` tracks and matches `origin/main`. Latest commit at the time of
+  writing is `5b9c753` — run `git log --oneline` for the current head.
 
 ---
 
