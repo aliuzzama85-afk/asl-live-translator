@@ -22,7 +22,7 @@ import { fetchWordPoseResult } from "./usePoseSequence.js";
  * @property {string|null} message - Set only when `status: "error"`.
  * @property {boolean} [manifestMissing] - Present only when `status:
  *   "error"`: `true` if the manifest itself 404'd (that library isn't built
- *   on this machine -- for the fingerspelling alphabet, "not recorded yet"),
+ *   on this machine -- for the fingerspelling alphabet, "not available"),
  *   `false` for any other failure. Lets a caller treat a library that
  *   doesn't exist differently from one that exists but failed
  *   (`pose_library/FINGERSPELLING_PLAN.md` Section 3).

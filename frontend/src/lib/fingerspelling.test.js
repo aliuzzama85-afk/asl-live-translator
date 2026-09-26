@@ -204,7 +204,9 @@ describe("planPlayback", () => {
 
 describe("skip messages", () => {
   it("explains each skip reason", () => {
-    expect(skipReasonText({ skipReason: "alphabet_unavailable" })).toMatch(/NOT RECORDED YET/);
+    expect(skipReasonText({ skipReason: "alphabet_unavailable" })).toBe(
+      "FINGERSPELLING ALPHABET NOT AVAILABLE"
+    );
     expect(skipReasonText({ skipReason: "unsupported" })).toMatch(/A–Z/);
     expect(skipReasonText({ skipReason: "too_long" })).toMatch(/MAX 20/);
     expect(skipReasonText({ skipReason: "missing_letters", missingLetters: ["Q", "Z"] })).toBe(
@@ -219,7 +221,7 @@ describe("skip messages", () => {
       { text: "DOG", skipReason: "alphabet_unavailable" },
     ]);
     expect(banner).toBe(
-      'SKIPPED: "CAB", "DOG" (NOT FOUND — FINGERSPELLING ALPHABET NOT RECORDED YET); ' +
+      'SKIPPED: "CAB", "DOG" (NOT FOUND — FINGERSPELLING ALPHABET NOT AVAILABLE); ' +
         '"ABC1" (NOT FOUND — ONLY A–Z CAN BE FINGERSPELLED)'
     );
   });

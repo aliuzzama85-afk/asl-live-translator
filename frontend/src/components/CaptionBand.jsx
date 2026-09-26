@@ -111,7 +111,7 @@ function SpelledLetters({ word }) {
  *   FOR..." message `App.jsx`'s Stage message shows, mirrored here per the
  *   single-word precedent of surfacing it in both places.
  * @param {string|null} props.missingDetail - Why those words couldn't be
- *   fingerspelled either (e.g. "FINGERSPELLING ALPHABET NOT RECORDED YET"),
+ *   fingerspelled either (e.g. "FINGERSPELLING ALPHABET NOT AVAILABLE"),
  *   shown under `missingMessage`.
  * @param {boolean} props.wasTruncated - True when the last submission had
  *   more than `MAX_WORDS` words and was capped.

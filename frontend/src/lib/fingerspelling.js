@@ -220,7 +220,7 @@ export function planPlayback(wordResults, neededLetters, letterBatch) {
 export function skipReasonText(word) {
   switch (word.skipReason) {
     case "alphabet_unavailable":
-      return "FINGERSPELLING ALPHABET NOT RECORDED YET";
+      return "FINGERSPELLING ALPHABET NOT AVAILABLE";
     case "unsupported":
       return "ONLY A–Z CAN BE FINGERSPELLED";
     case "too_long":

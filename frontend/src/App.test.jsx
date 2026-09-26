@@ -207,10 +207,10 @@ describe("App integration: real pose-library words", () => {
       expect(screen.getAllByText(/NO SIGN FOUND FOR "XYZZYNOTASIGN"/)).toHaveLength(2);
     });
 
-    // This suite's fetch mock serves no /fingerspelling/* (the real state
-    // until the alphabet is recorded), so the miss says why it couldn't be
+    // This suite's fetch mock serves no /fingerspelling/* (as on a checkout
+    // without the letter library), so the miss says why it couldn't be
     // spelled either, rather than aborting.
-    expect(screen.getAllByText(/FINGERSPELLING ALPHABET NOT RECORDED YET/)).toHaveLength(2);
+    expect(screen.getAllByText(/FINGERSPELLING ALPHABET NOT AVAILABLE/)).toHaveLength(2);
 
     // No skeleton canvas for a miss -- the Stage message replaces it
     // entirely (PLAN.md Section 5: "replacing the skeleton stage with that
@@ -281,8 +281,9 @@ describe("App integration: real pose-library words", () => {
 /**
  * Fingerspelling, end to end -- on SYNTHETIC placeholder letters.
  *
- * The real 26-letter alphabet is not recorded yet
- * (pose_library/FINGERSPELLING_PLAN.md). These letters are hand-constructed
+ * Pure plumbing tests, independent of the real letter data (24 real letters
+ * from the asl-now dataset are tested separately, further down). These
+ * letters are hand-constructed
  * stand-ins: manifest entries shaped exactly like
  * `pose_library.manifest.build_letter_entry` output (a 12-frame gap-free
  * static hold), with the same small arithmetic-friendly frames the word
