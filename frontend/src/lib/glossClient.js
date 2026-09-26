@@ -8,9 +8,11 @@ export const GLOSS_TIMEOUT_MS = 5000;
 export const HEALTH_TIMEOUT_MS = 5000;
 
 /** How long "no answer at all" is retried before reporting the service as not
- * running. On a cold start, PyTorch's import keeps the server from answering
- * for ~5s (measured), and `npm run dev:live` starts both processes at once, so
- * the first seconds of "no answer" are expected, not a failure. */
+ * running. `npm run dev:live` starts the server and the app at the same time,
+ * and the server needs ~2s (Python startup + its own light imports, measured)
+ * before it's listening. It then answers `loading` while the model loads,
+ * which is waited on with no cap, since the torch/transformers import alone
+ * has been measured at 4-55s on this machine. */
 export const CONNECT_GRACE_MS = 15000;
 export const HEALTH_POLL_MS = 2000;
 

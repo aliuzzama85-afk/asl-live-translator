@@ -65,7 +65,9 @@ function main() {
   }
 
   function start(label, command, args, cwd) {
-    const child = spawn(command, args, { cwd, env: process.env });
+    // PYTHONUNBUFFERED: a piped (non-terminal) stdout is block-buffered by
+    // Python, which would hold back anything the server prints until exit.
+    const child = spawn(command, args, { cwd, env: { ...process.env, PYTHONUNBUFFERED: "1" } });
     children.push(child);
     prefixed(child.stdout, label);
     prefixed(child.stderr, label);

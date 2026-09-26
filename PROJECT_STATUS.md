@@ -1091,10 +1091,12 @@ to say so).
 **Found and fixed during implementation**, beyond the plan:
 - The server replied before reading request bodies, so on Windows clients
   got a connection reset instead of the JSON error (flaky in tests at first).
-- A cold PyTorch import holds the GIL ~5s, so the server can't answer at
-  all during startup (measured). The frontend now waits out "no answer" for
-  15s, showing `CONNECTING TO TRANSLATION SERVICE…`, before saying "not
-  running".
+- The server couldn't answer at all during startup. This was first blamed on
+  PyTorch holding the GIL, **which was wrong**. See the 2026-09-27 correction
+  below: the real cause was `main()` importing torch/transformers before the
+  server was listening. The frontend waits out "no answer" for 15s
+  (`CONNECTING TO TRANSLATION SERVICE…`) before saying "not running"; that
+  grace now only has to cover Python starting up (~2s).
 - The stage said `LISTENING — START SPEAKING` while the privacy notice was
   still waiting for OK. Prompts now follow the real state.
 - `I need a taxi` glosses to `X-I NEED TITTLE` (the model doesn't know
@@ -1154,3 +1156,26 @@ but are unchecked); Chrome sends audio to Google's speech service
    `npm run dev` alone (expect `TRANSLATION SERVICE NOT RUNNING…`); open the
    page in Firefox (expect MIC disabled, "LIVE SPEECH NEEDS CHROME, EDGE, OR
    SAFARI").
+
+**Correction, 2026-09-27: `npm run dev:live` showed no `[gloss]` output and
+live mode said "TRANSLATION SERVICE NOT RUNNING".** Diagnosed by running the
+server standalone: it produced no output and answered nothing for 30s+, and
+a `faulthandler` stack dump showed it still inside
+`from gloss_model.inference import translate` in `main()`. **Root cause:**
+`main()` imported torch/transformers *before* creating the server, so the
+port stayed closed and nothing was logged until the import finished. That
+import took 55s on this machine that day (`import torch` alone 18.4s; it had
+been ~4s the day before, so something about the machine's environment
+changed, not the code). That far exceeded the frontend's 15s "no answer"
+grace. `dev:live` itself was fine. The earlier write-up above ("PyTorch holds
+the GIL ~5s") was a wrong diagnosis of the same flaw. **Fix:** the server
+binds and logs first, and the import runs on the model-load thread
+(`GlossService` resolves `translate` inside `load()`), so `/api/health`
+answers `loading` from the first moment and the frontend waits on it with no
+cap. Measured after the fix: first health answer at 54ms, 159 answers and 0
+failures during a 54.7s load (slowest 2.6s, since the GIL does slow answers),
+then ready. Also: health checks now log at DEBUG (they were flooding the
+console), and `dev:live` starts Python with `PYTHONUNBUFFERED=1`. Regression
+test: `test_cli_answers_health_before_the_model_finishes_loading` (starts
+the real CLI; fails against the old code, passes against the fix).
+

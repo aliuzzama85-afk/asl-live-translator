@@ -611,9 +611,12 @@ Built as planned, with these differences, each recorded in
   and `frontend/src/test/fakeRecognizer.js`.
 - **Extra error code**: `forbidden_origin` (403) for the `Origin` check, and
   `not_found` (404) for unknown routes.
-- **Startup**: a cold PyTorch import keeps the server from answering for
-  ~5s, so the frontend retries "no answer" for 15s before reporting "not
-  running".
+- **Startup**: the server binds and logs *before* importing
+  torch/transformers (measured at 4-55s on this machine), and that import
+  runs on the model-load thread while `/api/health` answers `loading`. The
+  frontend retries "no answer" for 15s, which only has to cover Python
+  starting up (~2s), and waits on `loading` with no cap. (Fixed 2026-09-27:
+  importing first had kept the port closed for the whole import.)
 - **MIC button label**: `MIC ON` rather than `LISTENING` while on, because it
   is "on" before it is actually listening (connecting, privacy notice); the
   status strip shows the true state.

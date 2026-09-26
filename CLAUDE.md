@@ -221,9 +221,17 @@ design decision, a gotcha), update this file before ending the session.
   - The gloss server defaults to `gloss_model/checkpoints_v2`;
     `gloss_model/config.CHECKPOINT_DIR` still points at v1, so never rely on
     that default for serving.
-  - PyTorch's cold import holds the GIL ~5s, so the server can't answer at
-    all at first. The frontend retries for 15s (`CONNECT_GRACE_MS`) before
-    saying "not running".
+  - **Never import torch/transformers before the gloss server is
+    listening.** That import has been measured at 4-55s on this machine (55s
+    on 2026-09-27); `main()` used to do it first, so the port stayed closed
+    and nothing was logged for the whole import, and the frontend reported
+    "not running". Now the server binds and logs first, and the import runs
+    on the model-load thread while `/api/health` answers `loading` (the
+    frontend waits on `loading` with no cap). Guarded by
+    `test_cli_answers_health_before_the_model_finishes_loading`. (An earlier
+    note here blamed PyTorch holding the GIL. That was wrong: the GIL only
+    slows health answers during the import, up to ~2.6s measured, never
+    stops them.)
   - A `BaseHTTPRequestHandler` must read the request body before replying,
     or Windows resets the connection and the client never sees the JSON
     error. `gloss_server._read_body` does this first on every POST.

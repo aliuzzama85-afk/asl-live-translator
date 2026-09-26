@@ -210,12 +210,20 @@ class GlossService:
 
     Args:
         loader: Returns `(model, tokenizer)`; called exactly once, by `load`.
-        translate_fn: `gloss_model.inference.translate`, or a test double.
+        translate_fn: A translate function (a test double), or `None` to use
+            `gloss_model.inference.translate`, imported inside `load()`. The
+            real one must NOT be imported before the server is listening:
+            importing it pulls in torch + transformers, which has been
+            measured at 4-55s on this machine, and nothing can answer
+            `/api/health` until it finishes (see `main`).
         checkpoint_label: Name reported by `/api/health` (not a full path).
     """
 
     def __init__(
-        self, loader: Loader, translate_fn: TranslateFn, checkpoint_label: str
+        self,
+        loader: Loader,
+        translate_fn: TranslateFn | None,
+        checkpoint_label: str,
     ) -> None:
         self._loader = loader
         self._translate = translate_fn
@@ -234,6 +242,10 @@ class GlossService:
         """
         try:
             self.load_count += 1
+            if self._translate is None:
+                from gloss_model.inference import translate
+
+                self._translate = translate
             self._model, self._tokenizer = self._loader()
             self._translate(WARMUP_TEXT, self._model, self._tokenizer)
         except Exception as exc:
@@ -288,8 +300,11 @@ def make_handler(
 
         def log_message(self, format: str, *args: Any) -> None:
             # Method, path, and status only; request bodies (speech) are
-            # never logged.
-            logger.info("%s %s", self.address_string(), format % args)
+            # never logged. Health checks are polled every couple of seconds
+            # while the frontend waits for the model, so they're DEBUG-level
+            # to keep the console (and `npm run dev:live`'s output) readable.
+            level = logging.DEBUG if self.path == "/api/health" else logging.INFO
+            logger.log(level, "%s %s", self.address_string(), format % args)
 
         def _send_json(self, status: HTTPStatus, payload: dict[str, Any]) -> None:
             body = json.dumps(payload).encode("utf-8")
@@ -455,7 +470,16 @@ def create_server(
 
 
 def main() -> None:
-    """CLI entry point: loads `.env`, starts the model load, serves forever."""
+    """CLI entry point: loads `.env`, starts listening, then loads the model.
+
+    Order matters: the server binds and logs *before* anything heavy is
+    imported, and the model (including the torch/transformers import itself)
+    loads on a background thread, so `/api/health` answers `"loading"` from
+    the first second. Importing torch/transformers first used to keep the
+    port closed for the whole import -- measured at up to 55s on this
+    machine -- so the frontend reported "not running" and `npm run dev:live`
+    showed no `[gloss]` output at all.
+    """
     from dotenv import load_dotenv
 
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
@@ -463,37 +487,43 @@ def main() -> None:
     try:
         config = load_config()
     except ValueError as exc:
-        print(f"Invalid configuration: {exc}")
+        print(f"Invalid configuration: {exc}", file=sys.stderr, flush=True)
         sys.exit(1)
     if not config.checkpoint_dir.is_dir():
         print(
             f"Model checkpoint not found at {config.checkpoint_dir}.\n"
             "It's gitignored, so it only exists where it was downloaded; see "
-            "KAGGLE.md, or set GLOSS_CHECKPOINT_DIR."
+            "KAGGLE.md, or set GLOSS_CHECKPOINT_DIR.",
+            file=sys.stderr,
+            flush=True,
         )
         sys.exit(1)
 
-    from gloss_model.inference import translate
-
     service = GlossService(
         default_loader(config.checkpoint_dir),
-        translate,
+        translate_fn=None,  # imported on the load thread, after we're listening
         checkpoint_label=config.checkpoint_dir.name,
     )
     server = create_server(config, service)
-
-    def load_then_announce() -> None:
-        service.load()
-        if service.status == "ready":
-            logger.info("Model ready (%s).", service.checkpoint_label)
-
-    threading.Thread(target=load_then_announce, daemon=True).start()
     logger.info(
-        "Gloss server on http://%s:%d (loading %s...)",
+        "Gloss server on http://%s:%d -- loading %s (importing torch/transformers "
+        "can take a while; /api/health reports progress)...",
         config.host,
         config.port,
         service.checkpoint_label,
     )
+
+    def load_then_announce() -> None:
+        started = time.monotonic()
+        service.load()
+        if service.status == "ready":
+            logger.info(
+                "Model ready (%s) after %.1fs.",
+                service.checkpoint_label,
+                time.monotonic() - started,
+            )
+
+    threading.Thread(target=load_then_announce, daemon=True).start()
     try:
         server.serve_forever()
     except KeyboardInterrupt:

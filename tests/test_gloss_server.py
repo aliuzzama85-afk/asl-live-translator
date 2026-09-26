@@ -310,3 +310,82 @@ def test_real_checkpoint_end_to_end():
     result = service.gloss("can you help me find my phone")
     assert result["gloss"] == "CAN X-YOU HELP X-I FIND X-MY PHONE"
     assert result["words"] == ["can", "help", "find", "phone"]
+
+
+# --- startup order (regression: the server used to be silent until torch loaded) ---
+
+
+def test_importing_the_server_does_not_import_torch_or_transformers():
+    # main() must be able to bind and log before the heavy stack loads, so the
+    # module itself has to stay light. Checked in a fresh interpreter.
+    import subprocess
+    import sys
+
+    code = (
+        "import sys, pipeline.gloss_server; "
+        "print('torch' in sys.modules, 'transformers' in sys.modules)"
+    )
+    out = subprocess.run(
+        [sys.executable, "-c", code], capture_output=True, text=True, check=True
+    ).stdout.split()
+    assert out == ["False", "False"]
+
+
+def test_service_imports_the_real_translate_lazily_in_load(monkeypatch):
+    import sys
+    import types
+
+    calls = []
+    fake_inference = types.ModuleType("gloss_model.inference")
+    fake_inference.translate = lambda text, model, tok: calls.append(text) or "HALF"
+    monkeypatch.setitem(sys.modules, "gloss_model.inference", fake_inference)
+
+    service = GlossService(lambda: ("m", "t"), translate_fn=None, checkpoint_label="x")
+    service.load()
+    assert service.status == "ready"
+    assert calls == ["hello"]  # the warm-up went through the lazily imported translate
+
+
+def test_cli_answers_health_before_the_model_finishes_loading(tmp_path):
+    # The real `python -m pipeline.gloss_server`, pointed at an empty
+    # checkpoint directory. It must be listening and reporting "loading" while
+    # torch/transformers are still importing (4-55s measured on this machine),
+    # not silent until they're done.
+    import os
+    import socket
+    import subprocess
+    import sys
+    import time
+    import urllib.request
+
+    with socket.socket() as s:
+        s.bind(("127.0.0.1", 0))
+        port = s.getsockname()[1]
+    env = {
+        **os.environ,
+        "GLOSS_CHECKPOINT_DIR": str(tmp_path),
+        "GLOSS_SERVER_PORT": str(port),
+    }
+    repo_root = Path(__file__).resolve().parent.parent
+    proc = subprocess.Popen(
+        [sys.executable, "-m", "pipeline.gloss_server"],
+        cwd=repo_root,
+        env=env,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    try:
+        deadline = time.monotonic() + 15
+        status = None
+        while time.monotonic() < deadline and status is None:
+            try:
+                with urllib.request.urlopen(
+                    f"http://127.0.0.1:{port}/api/health", timeout=5
+                ) as resp:
+                    status = json.loads(resp.read())["status"]
+            except OSError:
+                time.sleep(0.2)
+        assert status == "loading"
+    finally:
+        proc.kill()
+        proc.wait()
