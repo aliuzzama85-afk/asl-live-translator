@@ -16,6 +16,11 @@ sacrebleu==2.6.0
 mediapipe>=0.10
 opencv-python>=4.9
 yt-dlp>=2026.8
+# Fetches the MIT-licensed sid220/asl-now-fingerspelling dataset
+# (convert_hf_fingerspelling.py). Already a transitive dependency of
+# transformers/datasets; pinned explicitly because this project now calls it
+# directly, at the version that download was verified with.
+huggingface_hub==1.30.0
 
 # Config / secrets
 python-dotenv>=1.0
