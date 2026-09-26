@@ -14,6 +14,10 @@ import {
 } from "./lib/fingerspelling.js";
 import styles from "./App.module.css";
 
+/** Stable empty fallback, so the `useMemo`s that depend on `wordBoundaries`
+ * aren't recomputed on every render while nothing is loaded. */
+const NO_WORD_BOUNDARIES = [];
+
 /** Composes a "no sign found" message for one or more missing words, using
  * the same wording the original single-word app used (`NO SIGN FOUND FOR
  * "X"`) so a single-word miss reads identically to before, generalized to
@@ -90,7 +94,7 @@ export function App() {
   }, [plan, sequenceAborted]);
 
   const timeline = stitched?.timeline ?? null;
-  const wordBoundaries = stitched?.wordBoundaries ?? [];
+  const wordBoundaries = stitched?.wordBoundaries ?? NO_WORD_BOUNDARIES;
   const isLoaded = Boolean(timeline) && timeline.frames.length > 0;
 
   // Auto-play a freshly loaded sequence -- never leave it sitting frozen,
