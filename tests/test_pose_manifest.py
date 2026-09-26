@@ -131,3 +131,40 @@ def test_compute_quality_flags_reports_all_tripped_reasons():
     assert "low frame count" in notes
     assert "low retention" in notes
     assert "mid-clip tracking gaps" in notes
+
+
+def _letter_entry(issues):
+    from pose_library.manifest import build_letter_entry
+
+    return build_letter_entry(
+        letter="J",
+        kind="motion",
+        signing_hand="right",
+        source="fingerspelling:self-recorded",
+        recording_total_frames=75,
+        frames_with_hand=70,
+        segment_start_frame=20,
+        total_frames_decoded=30,
+        frames_kept=29,
+        dropped_frame_indices=[7],
+        issues=issues,
+    )
+
+
+def test_build_letter_entry_shares_wlasl_timeline_fields_and_drops_wlasl_ids():
+    entry = _letter_entry([])
+    # The fields reconstructTimeline() reads, with the same meaning as WLASL's.
+    assert entry["total_frames_decoded"] == 30
+    assert entry["frames_kept"] == 29
+    assert entry["dropped_frame_indices"] == [7]
+    assert entry["filename"] == "j.json"
+    assert entry["recording"]["filename"] == "raw/j.mp4"
+    assert not any(key.startswith("wlasl_") for key in entry)
+    assert entry["low_confidence"] is False
+    assert entry["quality_notes"] is None
+
+
+def test_build_letter_entry_flags_quality_issues():
+    entry = _letter_entry(["a", "b"])
+    assert entry["low_confidence"] is True
+    assert entry["quality_notes"] == "a; b"

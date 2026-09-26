@@ -26,6 +26,11 @@ WLASL_LICENSE_TAG = (
 )
 
 
+FINGERSPELLING_LICENSE_TAG = (
+    "Self-recorded by the project author; project-owned, MIT (see LICENSE)"
+)
+
+
 def load_manifest(path: Path = config.MANIFEST_PATH) -> dict[str, dict[str, Any]]:
     """Loads the manifest, or an empty dict if it doesn't exist yet.
 
@@ -180,4 +185,70 @@ def build_entry(
         "dropped_frame_indices": dropped_frame_indices,
         "low_confidence": low_confidence,
         "quality_notes": quality_notes,
+    }
+
+
+def build_letter_entry(
+    letter: str,
+    kind: str,
+    signing_hand: str,
+    source: str,
+    recording_total_frames: int,
+    frames_with_hand: int,
+    segment_start_frame: int,
+    total_frames_decoded: int,
+    frames_kept: int,
+    dropped_frame_indices: list[int],
+    issues: list[str],
+) -> dict[str, Any]:
+    """Builds one fingerspelling-manifest entry for a built letter.
+
+    Same shape as a WLASL word entry wherever the fields apply, per
+    `pose_library/FINGERSPELLING_PLAN.md` Section 2: `total_frames_decoded`/
+    `frames_kept`/`dropped_frame_indices` describe the *stored segment* --
+    the same meaning they have for WLASL, whose entries describe the trimmed
+    clip, not the full source video -- so `reconstructTimeline()` consumes
+    letters unchanged. WLASL-only provenance fields are dropped; the raw
+    take's own numbers live under `recording`.
+
+    Quality flags are letter-specific (the caller's `issues`), not
+    `compute_quality_flags()`, whose WLASL-tuned thresholds (e.g. <25 kept
+    frames) would flag every 12-frame static letter.
+
+    Args:
+        letter: The letter (lowercase), used as the manifest key.
+        kind: `"static"` or `"motion"`.
+        signing_hand: `"left"` or `"right"`.
+        source: Provenance string (`"fingerspelling:self-recorded"`).
+        recording_total_frames: Frames decoded from the whole raw take.
+        frames_with_hand: Frames in the raw take with the signing hand
+            tracked.
+        segment_start_frame: Raw-take frame index where the segment starts.
+        total_frames_decoded: Frames the stored segment spans.
+        frames_kept: Frames actually stored in `<letter>.json`.
+        dropped_frame_indices: Segment-relative frames missing from the
+            stored sequence.
+        issues: Quality problems found while cutting the segment.
+
+    Returns:
+        A JSON-serializable manifest entry dict.
+    """
+    return {
+        "filename": f"{letter.lower()}.json",
+        "letter": letter.lower(),
+        "kind": kind,
+        "signing_hand": signing_hand,
+        "source": source,
+        "license": FINGERSPELLING_LICENSE_TAG,
+        "recording": {
+            "filename": f"raw/{letter.lower()}.mp4",
+            "total_frames_decoded": recording_total_frames,
+            "frames_with_hand": frames_with_hand,
+            "segment_start_frame": segment_start_frame,
+        },
+        "total_frames_decoded": total_frames_decoded,
+        "frames_kept": frames_kept,
+        "dropped_frame_indices": dropped_frame_indices,
+        "low_confidence": bool(issues),
+        "quality_notes": "; ".join(issues) if issues else None,
     }
