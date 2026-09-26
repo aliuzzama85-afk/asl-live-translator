@@ -1,8 +1,8 @@
 # Project Status
 
-Last updated: 2026-09-26 (fingerspelling: **24 of 26 letters now real**,
-from the MIT-licensed `sid220/asl-now-fingerspelling` dataset; **J and Z
-still missing** — see Section 14, which updates Section 13). Build-order step 3,
+Last updated: 2026-09-26 (fingerspelling: **all 26 letters complete**, 24
+from the MIT-licensed `sid220/asl-now-fingerspelling` dataset and J and Z
+self-recorded — see Section 14, which updates Section 13). Build-order step 3,
 multi-word playback with cross-sign interpolation, done 2026-09-25 — see
 Section 12.
 Stage 5 formally signed off 2026-09-22 — see Section 11; Stage 4 also
@@ -24,7 +24,7 @@ to pick up exactly where things stand.
 | 1. ASR (speech-to-text) | **Not started** | `pipeline/asr.py` doesn't exist yet; `pipeline/` only has an empty `__init__.py`. |
 | 2. VAD chunking | **Not started** | `pipeline/vad.py` doesn't exist yet. |
 | 3. Gloss translation | **Done — signed off 2026-09-10** | See Section 9. `gloss_model/checkpoints_v2/` is the model to use going forward, superseding v1. |
-| 4. Gloss-to-pose lookup | **Done — see Section 10** | 118-word pose library built from WLASL + MediaPipe, 61 tests passing. Fingerspelling fallback: built, 24/26 letters from the MIT-licensed asl-now dataset, J and Z missing (Sections 13–14). The WLASL/C-UDA licensing question was resolved 2026-09-26 (local/dev-only indefinitely) — see Section 5. |
+| 4. Gloss-to-pose lookup | **Done — see Section 10** | 118-word pose library built from WLASL + MediaPipe, 61 tests passing. Fingerspelling fallback: built, all 26 letters (24 from the MIT-licensed asl-now dataset, J and Z self-recorded; Sections 13–14). The WLASL/C-UDA licensing question was resolved 2026-09-26 (local/dev-only indefinitely) — see Section 5. |
 | 5. Rendering (frontend) | **Done — signed off 2026-09-22, see Section 11** | Single-word skeleton renderer, feature-complete per `frontend/PLAN.md`'s v1 scope, 25/25 tests passing (`a024993`). Multi-word playback with cross-sign interpolation (build-order step 3) built on top of this — see Section 12. |
 
 ### Stage 3 completion criteria — all met, signed off 2026-09-10 (see Section 9)
@@ -254,12 +254,11 @@ three are also logged in `CLAUDE.md`'s "Known gotchas / decisions log".
    and in `pose_library/PLAN.md` (unverified third-party video-source
    terms, Section 1 and its open questions) would need to be revisited
    before proceeding.
-7. **Fingerspelling alphabet — 24 of 26 letters available (2026-09-26);
-   J and Z missing.** Infrastructure built (Section 13). 24 letters are
-   converted from the MIT-licensed `sid220/asl-now-fingerspelling` dataset
-   (Section 14). J and Z aren't in it as motion, so they need recording
-   (`record_fingerspelling --letters jz`). Words containing them are skipped
-   with "NO FINGERSPELLING FOR "J"" until then.
+7. ~~Fingerspelling alphabet~~ **Complete 2026-09-26 — all 26 letters.**
+   Infrastructure built (Section 13); 24 letters converted from the
+   MIT-licensed `sid220/asl-now-fingerspelling` dataset, and J and Z
+   (motion letters the dataset lacks) self-recorded (Section 14). Still
+   open: a review by someone who knows ASL fingerspelling.
 8. ~~Multi-word / cross-sign interpolation — not started.~~ **Resolved
    2026-09-25** — designed (`frontend/MULTIWORD_PLAN.md`, `f4fdc82`) and
    built (`7125800`), 40/40 tests passing. See Section 12.
@@ -293,12 +292,11 @@ Loose ends, not blocking step 4 but worth closing out when convenient:
   Stage 5's single-word playback too, not just multi-word transitions. Not
   fixed; a real fix (skip-drawing a zero-sentinel hand, or fading it) is
   future work if it turns out to matter visually in practice.
-- **Record J and Z** (Section 5 item 7, Section 14): the only data still
-  missing for fingerspelling, and a manual step. Run
-  `python -m pose_library.record_fingerspelling --letters jz`, then
-  `python -m pose_library.build_fingerspelling`, review in the browser, and
-  commit `pose_library/fingerspelling/`. Separately, the feature still needs
-  a check by someone who knows ASL fingerspelling (Section 14).
+- **Fluent-signer review of the fingerspelling alphabet** (Section 5
+  item 7, Section 14): all 26 letters exist, but none has been checked by
+  someone who knows ASL fingerspelling. Any letter that reads wrong can be
+  re-recorded (`record_fingerspelling --letters <x>`, then
+  `build_fingerspelling`).
 - ~~WLASL/C-UDA licensing decision~~ **Resolved 2026-09-26** (Section 5
   item 6): local/dev-only indefinitely, `pose_library/data/` never served
   or redistributed publicly.
@@ -793,8 +791,9 @@ VAD), wired to this now-working core — not yet started, see Section 6.
 > **Superseded in part by Section 14 (same day)**: 24 of the 26 letters now
 > come from the MIT-licensed `sid220/asl-now-fingerspelling` dataset, so the
 > "none of the 26 letters recorded" status and the "record all 26" steps
-> below no longer apply. Only J and Z still need recording. Kept below as
-> written, as the record of the infrastructure pass.
+> below no longer apply. J and Z, the two letters the dataset couldn't
+> provide, were then self-recorded, so all 26 are complete (Section 14).
+> Kept below as written, as the record of the infrastructure pass.
 
 **Honest status first: infrastructure-complete, data-incomplete.** Everything
 needed to spell an out-of-library word letter by letter is built, tested,
@@ -912,13 +911,15 @@ non-signing hand; one take per letter, one signer.
 
 ---
 
-## 14. Fingerspelling data: 24 letters from the asl-now dataset; J and Z still missing (2026-09-26)
+## 14. Fingerspelling data complete: 24 letters from the asl-now dataset, J and Z self-recorded (2026-09-26)
 
-**Status, exactly: 24 of 26 letters have real, usable data. 2 (J, Z) still
-need recording.** The 24 are converted from
+**Status, exactly: all 26 letters have real, usable data.** 24 are converted
+from
 [`sid220/asl-now-fingerspelling`](https://huggingface.co/datasets/sid220/asl-now-fingerspelling)
 (Hugging Face, MIT, Sidney Trzepacz, revision `9b3c96ae`). They're **not**
-self-recorded and **not** synthetic placeholders. License record:
+self-recorded and **not** synthetic placeholders. **J and Z are
+self-recorded** (see "J and Z" below), because the dataset has no motion
+data for them. License record for the dataset letters:
 `pose_library/fingerspelling/THIRD_PARTY_LICENSE_asl-now-fingerspelling.md`.
 Every decision, with the evidence behind it, is in
 `pose_library/FINGERSPELLING_PLAN.md` Section 2b.
@@ -927,8 +928,8 @@ Every decision, with the evidence behind it, is in
 - 26 letter folders, 53–155 samples each. **Every file is a single frame**
   of 21 `{x, y, z}` points, exactly as the card describes.
 - **J and Z: no motion data.** They have 93 and 155 files, all single still
-  frames like every other letter. They are **not converted**; no motion was
-  faked.
+  frames like every other letter. They are **not converted from the
+  dataset** and no motion was faked; they were self-recorded instead.
 - No handedness label, and mixed hands (2D palm test ~60/40 per letter; a
   3D chirality measure is inconsistent across letters, so not trustworthy).
   Recorded as `signing_hand: "unlabeled"`.
@@ -986,21 +987,34 @@ plumbing tests are unchanged.
   browser pane throttled animation frames during the session, so some letters
   were skipped over on screen. That was environmental (0–1 frames/s), not an
   app issue.
-- "about jazz": ABOUT plays; JAZZ is skipped with `NO FINGERSPELLING FOR
-  "J", "Z"`.
+- Before J and Z were recorded, "about jazz" played ABOUT and skipped JAZZ
+  with `NO FINGERSPELLING FOR "J", "Z"`, the designed missing-letter path.
 
-**Known limitations**: J and Z missing; one sample per letter from a mix of
-participants, so letters may differ slightly in hand size and apparent hand
-across a word; handedness unlabeled; held poses have no micro-motion; not
-yet checked by someone who knows ASL fingerspelling.
+**J and Z (self-recorded, same day):** recorded with
+`python -m pose_library.record_fingerspelling --letters jz` and built with
+`python -m pose_library.build_fingerspelling` ("Alphabet: 26/26 letters
+built"). The manifest diff only adds `j` and `z`; the 24 dataset letters are
+unchanged.
+- J: 76-frame take, hand tracked in 76/76, 30-frame (~1.0s) motion span,
+  no gaps, no flags. Z: 76-frame take, 76/76 tracked, 52-frame (~1.8s) span,
+  no gaps, no flags. Raw clips committed (`raw/j.mp4` 318KB, `raw/z.mp4`
+  373KB).
+- Shape check: J is traced with the pinky, and its pinky tip travels
+  farthest (1.61 vs 0.83 for the index); Z is traced with the index, and its
+  index tip travels farthest (1.36 vs 1.03 for the pinky). That's consistent
+  with correct recordings.
+- In the app's own pipeline with the real data, "about jazz" now stitches
+  ABOUT → J → A → Z → Z (8.0s) with nothing skipped, each letter carrying
+  its own source. The real-letter App test that pinned "J unavailable" was
+  replaced with one asserting "jazz" spells end to end (77/77 still).
 
-**The exact next manual step** (J and Z only):
-1. From the repo root with the venv active:
-   `python -m pose_library.record_fingerspelling --letters jz`. Draw each
-   letter's motion once when recording starts, and press R to re-take if the
-   window reports LOW.
-2. `python -m pose_library.build_fingerspelling`. It should report J and Z
-   OK and "Alphabet: 26/26 letters built." The 24 dataset letters are left
-   alone.
-3. Restart `npm run dev` in `frontend/` and spell `jazz`.
-4. Commit `pose_library/fingerspelling/` (two raw clips, two poses, manifest).
+**Known limitations**: J and Z come from one signer and the other 24 from a
+mix of dataset participants, so hand proportions and apparent handedness can
+vary from letter to letter within a word; dataset handedness is unlabeled;
+held poses have no micro-motion; not yet checked by someone who knows ASL
+fingerspelling.
+
+**What remains**: no data is missing. The one open item is a review by
+someone who knows ASL fingerspelling. Any letter that reads wrong can be
+re-recorded with `record_fingerspelling --letters <x>` then
+`build_fingerspelling` (a recording replaces the dataset version).

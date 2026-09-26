@@ -422,8 +422,8 @@ actually looked.
 
 ## 5. OOV / fingerspelling fallback
 
-> **Update 2026-09-26**: fingerspelling is now built, with 24 of 26 real
-> letters from the MIT-licensed asl-now dataset; J and Z are missing. See
+> **Update 2026-09-26**: fingerspelling is now built, with all 26 real
+> letters (24 from the MIT-licensed asl-now dataset, J and Z self-recorded). See
 > `pose_library/FINGERSPELLING_PLAN.md`. It didn't take the
 > `{ status: "fingerspelled", letters }` branch suggested below: a spelled
 > word is expanded into per-letter units fed to the same `stitchTimelines`

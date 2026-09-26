@@ -4,7 +4,8 @@ Scope: when a gloss word isn't in the 118-word WLASL pose library, spell it out
 letter by letter with a 26-letter ASL fingerspelling alphabet, instead of
 skipping it with "NOT FOUND". The letters now come from the MIT-licensed
 `sid220/asl-now-fingerspelling` dataset (24 letters, Section 2b), with
-self-recording (Section 1) for the gap the dataset can't fill. This supersedes `pose_library/PLAN.md`
+self-recording (Section 1) for J and Z, the two letters the dataset can't
+provide. This supersedes `pose_library/PLAN.md`
 Section 5's earlier sketch (`get_fingerspelling_sequence()` /
 `resolve_gloss_word()` — **never built**, and designed before
 `stitchTimelines()` existed; see Section 4 for why it's redesigned rather than
@@ -18,16 +19,15 @@ hooks/usePoseSequences.js,hooks/usePoseSequence.js,components/CaptionBand.jsx}`,
 `frontend/vite.config.js`, `.gitignore`, and real pose JSON/manifest data on
 disk (details in Section 2).
 
-**Data status up front, stated plainly (updated 2026-09-26)**: **24 of the
-26 letters have real data**, converted from the MIT-licensed
+**Data status up front, stated plainly (updated 2026-09-26)**: **all 26
+letters have real data.** 24 are converted from the MIT-licensed
 [`sid220/asl-now-fingerspelling`](https://huggingface.co/datasets/sid220/asl-now-fingerspelling)
-dataset (Section 2b). **J and Z are still missing**: the dataset has no motion
-data for them, and they're motion letters. Filling them requires recording
-just those two with the recorder in Section 1 (Section 7). Words containing J
-or Z are skipped with a clear message until then. This doc was first written
-when *no* letters existed and the plan was to self-record all 26; Sections 1
-and 2 describe that recording path, which remains valid for J/Z (or any
-letter someone wants to re-record). Synthetic placeholder letters under
+dataset (Section 2b). **J and Z are self-recorded** with the recorder in
+Section 1, because the dataset has no motion data for them and they're motion
+letters (Section 2c). This doc was first written when *no* letters existed
+and the plan was to self-record all 26; Sections 1 and 2 describe that
+recording path, which was used for J and Z and remains valid for re-recording
+any letter. Synthetic placeholder letters under
 `tests/fixtures/fingerspelling_synthetic/` still exist for plumbing tests only.
 
 ---
@@ -199,8 +199,8 @@ on Hugging Face ("ASLNow!", by Sidney Trzepacz), pinned to revision
 primary sources quoted verbatim:
 [`fingerspelling/THIRD_PARTY_LICENSE_asl-now-fingerspelling.md`](fingerspelling/THIRD_PARTY_LICENSE_asl-now-fingerspelling.md).
 Converter: `python -m pose_library.convert_hf_fingerspelling`. **J and Z are
-not available from this source** (see below). The recorder in Section 1 is
-still the way to fill them in.
+not available from this source** (see below), so they were self-recorded
+instead (Section 2c).
 
 ### What the data actually is — inspected, not assumed
 All 2,122 sample files at that revision were downloaded and read:
@@ -214,9 +214,11 @@ All 2,122 sample files at that revision were downloaded and read:
   the same single still frame as every other letter, a snapshot of a letter
   that is really a motion (PLAN.md Section 5). Holding one still frame, or
   interpolating between two unrelated ones, would show a motion that wasn't
-  captured and misrepresent the sign. So **J and Z are not converted**; any
-  word containing them is skipped with `NO FINGERSPELLING FOR "J"`, via the
-  existing missing-letter handling (Section 3). No new code path was needed.
+  captured and misrepresent the sign. So **J and Z are not converted from
+  the dataset**. They were self-recorded instead (Section 2c). Before that,
+  words containing them were skipped with `NO FINGERSPELLING FOR "J"` via the
+  existing missing-letter handling (Section 3), which still applies to any
+  letter a checkout is missing.
 - **No handedness label**, and mixed hands: a 2D palm-orientation test splits
   every letter roughly 60/40 (B: 52/17), and a 3D chirality measure
   (the palm-plane normal against the side the fingertips curl toward) gives
@@ -274,6 +276,30 @@ exact file, selection method, median distance, sample counts). There is no
   letter when a recording of it exists (an explicit choice), and the converter
   never overwrites a self-recorded letter. Each tool only *removes* entries it
   owns, so a failed or absent recording never deletes a dataset letter.
+
+---
+
+## 2c. J and Z: self-recorded (2026-09-26)
+
+J and Z were recorded with `python -m pose_library.record_fingerspelling
+--letters jz` and built with `python -m pose_library.build_fingerspelling`,
+exactly as Sections 1–2 describe. The 24 dataset letters were untouched
+(verified: the manifest diff only adds `j` and `z`). Both are `motion`
+letters with `source: "fingerspelling:self-recorded"` and a `recording`
+block, and `raw/j.mp4`/`raw/z.mp4` are committed.
+
+| Letter | Raw take | Hand tracked | Stored motion span | Flags |
+|---|---|---|---|---|
+| J | 76 frames, ~29.8fps | 76/76 | 30 frames (~1.0s), no gaps | none |
+| Z | 76 frames, ~29.6fps | 76/76 | 52 frames (~1.8s), no gaps | none |
+
+A sanity check against the letters' actual shapes, not just the numbers:
+**J** is traced with the pinky, and its pinky tip has the longest path of
+any fingertip (1.61 normalized units vs 0.83 for the index). **Z** is traced
+with the index finger, and its index tip has the longest path (1.36 vs 1.03
+for the pinky). A dataset static letter (A) moves 0 by comparison. That's
+consistent with correct recordings. It doesn't replace a review by someone
+who knows ASL fingerspelling (Section 7).
 
 ---
 
@@ -438,23 +464,24 @@ and phone sizes.
 
 ### Sign-off criteria
 - **Infrastructure sign-off**: met (everything above passing).
-- **24-letter data sign-off**: met 2026-09-26. The dataset letters are
-  converted, sanity-checked (landmarks equal the source, non-zero, 12-frame
-  holds), and viewed in a real browser (B, L, V, Y clearly legible; A and O
-  correct but harder to read, as curled-finger letters are in a 2D skeleton).
-- **Feature sign-off (all 26)**: not met. It needs J and Z recorded, plus a
-  check of several real spelled words (at least one with J or Z) by
-  **someone who knows ASL fingerspelling**. That check hasn't happened for
-  the 24 dataset letters either; they were checked by eye only.
+- **Data sign-off (all 26 letters)**: met 2026-09-26. The 24 dataset
+  letters are converted, sanity-checked (landmarks equal the source,
+  non-zero, 12-frame holds), and viewed in a real browser (B, L, V, Y
+  clearly legible; A and O correct but harder to read, as curled-finger
+  letters are in a 2D skeleton). J and Z are recorded, built with full hand
+  tracking and no flags, and play in the app ("jazz" spells end to end;
+  Section 2c).
+- **Fluent-signer review**: not done. No one who knows ASL fingerspelling
+  has checked the letters yet; all 26 were checked by eye and by the
+  measurements above only. This is the one remaining check for the feature.
 
-### The manual step that remains (J and Z only)
-1. `python -m pose_library.record_fingerspelling --letters jz`: sign J and Z
-   (each is a motion; draw it once when recording starts).
-2. `python -m pose_library.build_fingerspelling`: builds the two recorded
-   letters into the same manifest, alongside the 24 dataset letters (which it
-   doesn't touch).
-3. Restart `npm run dev`, then spell a word with J or Z (e.g. `jazz`) and review.
-4. Commit `pose_library/fingerspelling/` (the two raw clips, poses, manifest).
+### What remains
+No data is missing. The remaining step is a review by someone who knows ASL
+fingerspelling: spell several real words (including ones with J and Z) and
+confirm they read correctly. Any letter that doesn't can be re-recorded with
+`python -m pose_library.record_fingerspelling --letters <x>` followed by
+`python -m pose_library.build_fingerspelling`. A recording replaces the
+dataset version of that letter.
 
 ---
 

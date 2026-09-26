@@ -151,15 +151,15 @@ design decision, a gotcha), update this file before ending the session.
   this. It blocks the commit if gitleaks isn't found (set `GITLEAKS_BIN` if it's
   installed but not on PATH, e.g. a shell started before a `winget install`).
   Retroactive full-history scan on 2026-09-25: 33 commits, no leaks.
-- **Fingerspelling (2026-09-26): 24 of 26 letters available, J and Z
-  missing.** The 24 are converted from the **MIT-licensed
+- **Fingerspelling (2026-09-26): all 26 letters available.** 24 are
+  converted from the **MIT-licensed
   `sid220/asl-now-fingerspelling` Hugging Face dataset**
   (`python -m pose_library.convert_hf_fingerspelling`; license record in
   `pose_library/fingerspelling/THIRD_PARTY_LICENSE_asl-now-fingerspelling.md`).
   They're not self-recorded and not synthetic. J and Z aren't in the dataset
-  as motion (every sample is one still frame), so they need recording:
-  `python -m pose_library.record_fingerspelling --letters jz`, then
-  `python -m pose_library.build_fingerspelling`. See `PROJECT_STATUS.md`
+  as motion (every sample is one still frame), so they're self-recorded
+  (`record_fingerspelling --letters jz`, then `build_fingerspelling`; the
+  same commands re-record any letter). See `PROJECT_STATUS.md`
   Sections 13–14 and `pose_library/FINGERSPELLING_PLAN.md` Section 2b.
   Gotchas:
   - **Never fake J/Z motion** from still frames (holding or interpolating
