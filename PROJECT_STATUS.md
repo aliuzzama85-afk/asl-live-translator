@@ -798,8 +798,8 @@ nothing about handshape quality. Until the letters are recorded, the app
 behaves as before for OOV words, with honest copy: "FINGERSPELLING ALPHABET
 NOT RECORDED YET".
 
-Design: `pose_library/FINGERSPELLING_PLAN.md` (`e3c8494`). Built in
-`882fff9` (recorder), `68f7f13` (extraction/manifest build), `898f5c1`
+Design: `pose_library/FINGERSPELLING_PLAN.md` (`8942f3d`). Built in
+`ffe1ed0` (recorder), `f6ed0b5` (extraction/manifest build), `767a794`
 (frontend integration, UI, synthetic fixtures).
 
 **What was built**, file by file:
