@@ -30,6 +30,14 @@ FINGERSPELLING_LICENSE_TAG = (
     "Self-recorded by the project author; project-owned, MIT (see LICENSE)"
 )
 
+# Recorded per-entry for letters converted from sid220/asl-now-fingerspelling,
+# pointing at the durable local license record (FINGERSPELLING_PLAN.md
+# Section 2b), the same way WLASL entries carry WLASL_LICENSE_TAG.
+ASL_NOW_LICENSE_TAG = (
+    "MIT, Copyright 2024 Sidney Trzepacz; see "
+    "pose_library/fingerspelling/THIRD_PARTY_LICENSE_asl-now-fingerspelling.md"
+)
+
 
 def load_manifest(path: Path = config.MANIFEST_PATH) -> dict[str, dict[str, Any]]:
     """Loads the manifest, or an empty dict if it doesn't exist yet.
@@ -188,6 +196,41 @@ def build_entry(
     }
 
 
+def _letter_entry(
+    letter: str,
+    kind: str,
+    signing_hand: str,
+    source: str,
+    license_tag: str,
+    provenance: dict[str, Any],
+    total_frames_decoded: int,
+    frames_kept: int,
+    dropped_frame_indices: list[int],
+    issues: list[str],
+) -> dict[str, Any]:
+    """Shared shape of every fingerspelling-manifest entry, whatever its source.
+
+    `provenance` is merged in as-is: a self-recorded letter adds a
+    `recording` block, a dataset letter adds `source_url` and a
+    `dataset_sample` block. Everything the player reads is identical
+    across sources.
+    """
+    return {
+        "filename": f"{letter.lower()}.json",
+        "letter": letter.lower(),
+        "kind": kind,
+        "signing_hand": signing_hand,
+        "source": source,
+        "license": license_tag,
+        **provenance,
+        "total_frames_decoded": total_frames_decoded,
+        "frames_kept": frames_kept,
+        "dropped_frame_indices": dropped_frame_indices,
+        "low_confidence": bool(issues),
+        "quality_notes": "; ".join(issues) if issues else None,
+    }
+
+
 def build_letter_entry(
     letter: str,
     kind: str,
@@ -201,7 +244,7 @@ def build_letter_entry(
     dropped_frame_indices: list[int],
     issues: list[str],
 ) -> dict[str, Any]:
-    """Builds one fingerspelling-manifest entry for a built letter.
+    """Builds one fingerspelling-manifest entry for a self-recorded letter.
 
     Same shape as a WLASL word entry wherever the fields apply, per
     `pose_library/FINGERSPELLING_PLAN.md` Section 2: `total_frames_decoded`/
@@ -233,22 +276,68 @@ def build_letter_entry(
     Returns:
         A JSON-serializable manifest entry dict.
     """
-    return {
-        "filename": f"{letter.lower()}.json",
-        "letter": letter.lower(),
-        "kind": kind,
-        "signing_hand": signing_hand,
-        "source": source,
-        "license": FINGERSPELLING_LICENSE_TAG,
-        "recording": {
-            "filename": f"raw/{letter.lower()}.mp4",
-            "total_frames_decoded": recording_total_frames,
-            "frames_with_hand": frames_with_hand,
-            "segment_start_frame": segment_start_frame,
+    return _letter_entry(
+        letter=letter,
+        kind=kind,
+        signing_hand=signing_hand,
+        source=source,
+        license_tag=FINGERSPELLING_LICENSE_TAG,
+        provenance={
+            "recording": {
+                "filename": f"raw/{letter.lower()}.mp4",
+                "total_frames_decoded": recording_total_frames,
+                "frames_with_hand": frames_with_hand,
+                "segment_start_frame": segment_start_frame,
+            }
         },
-        "total_frames_decoded": total_frames_decoded,
-        "frames_kept": frames_kept,
-        "dropped_frame_indices": dropped_frame_indices,
-        "low_confidence": bool(issues),
-        "quality_notes": "; ".join(issues) if issues else None,
-    }
+        total_frames_decoded=total_frames_decoded,
+        frames_kept=frames_kept,
+        dropped_frame_indices=dropped_frame_indices,
+        issues=issues,
+    )
+
+
+def build_dataset_letter_entry(
+    letter: str,
+    source: str,
+    source_url: str,
+    license_tag: str,
+    dataset_sample: dict[str, Any],
+    frames_kept: int,
+    issues: list[str],
+) -> dict[str, Any]:
+    """Builds one fingerspelling-manifest entry for a letter converted from a dataset.
+
+    Same player-facing shape as `build_letter_entry` (via `_letter_entry`),
+    with the provenance fields WLASL entries carry per word: a `source`, a
+    `source_url`, and a `license`, plus `dataset_sample`, which records exactly
+    which sample was chosen and why. A dataset letter is always one held
+    single frame, so it is `static`, gap-free, and spans exactly the frames
+    stored.
+
+    Args:
+        letter: The letter (lowercase), used as the manifest key.
+        source: Provenance string, e.g. `"hf:sid220/asl-now-fingerspelling"`.
+        source_url: The dataset's canonical URL.
+        license_tag: Per-entry license string.
+        dataset_sample: Which sample was used and how it was chosen.
+        frames_kept: Frames stored in `<letter>.json` (the hold length).
+        issues: Quality problems, if any.
+
+    Returns:
+        A JSON-serializable manifest entry dict.
+    """
+    return _letter_entry(
+        letter=letter,
+        kind="static",
+        # The dataset doesn't label handedness, and it couldn't be reliably
+        # recovered from the landmarks (FINGERSPELLING_PLAN.md Section 2b).
+        signing_hand="unlabeled",
+        source=source,
+        license_tag=license_tag,
+        provenance={"source_url": source_url, "dataset_sample": dataset_sample},
+        total_frames_decoded=frames_kept,
+        frames_kept=frames_kept,
+        dropped_frame_indices=[],
+        issues=issues,
+    )

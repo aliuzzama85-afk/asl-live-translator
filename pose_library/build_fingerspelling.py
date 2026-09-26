@@ -68,9 +68,13 @@ def build_letter(
 ) -> LetterBuildResult:
     """Extracts one letter's recording and records it in `library`.
 
-    On failure the letter's old pose JSON and manifest entry (if any) are
-    removed, so the manifest never describes a different take than the one
-    sitting in `raw/`.
+    On failure the letter's old *self-recorded* pose JSON and manifest entry
+    are removed, so the manifest never describes a different take than the
+    one sitting in `raw/`. An entry from another source (e.g. the
+    asl-now-fingerspelling dataset, `convert_hf_fingerspelling.py`) is never
+    touched by a failure here -- this build only removes what it owns. A
+    *successful* build does replace it: recording a letter is an explicit
+    choice to override the dataset version.
 
     Args:
         letter: The letter to build.
@@ -87,9 +91,10 @@ def build_letter(
     json_path = pose_json_path(letter, poses_dir)
 
     def fail(reason: str) -> LetterBuildResult:
-        library.pop(letter, None)
-        if json_path.is_file():
-            json_path.unlink()
+        if library.get(letter, {}).get("source") == FINGERSPELLING_SOURCE:
+            library.pop(letter)
+            if json_path.is_file():
+                json_path.unlink()
         return LetterBuildResult(letter=letter, success=False, error=reason)
 
     if not video_path.is_file():

@@ -53,6 +53,17 @@ FINGERSPELLING_RAW_DIR = FINGERSPELLING_DIR / "raw"
 FINGERSPELLING_POSES_DIR = FINGERSPELLING_DIR / "poses"
 FINGERSPELLING_MANIFEST_PATH = FINGERSPELLING_POSES_DIR / "manifest.json"
 
+# --- Third-party fingerspelling source: sid220/asl-now-fingerspelling (MIT) ---
+# License record: pose_library/fingerspelling/THIRD_PARTY_LICENSE_asl-now-fingerspelling.md.
+# Pinned to one dataset revision so a conversion is reproducible (the card
+# says it "will be updated frequently"). The raw download is a re-fetchable
+# cache under the gitignored DATA_DIR; only the converted letters are
+# committed.
+ASL_NOW_DATASET_ID = "sid220/asl-now-fingerspelling"
+ASL_NOW_REVISION = "9b3c96ae0adb7744a2c9fc72692842e6b3e25e33"
+ASL_NOW_SOURCE_URL = "https://huggingface.co/datasets/sid220/asl-now-fingerspelling"
+ASL_NOW_CACHE_DIR = DATA_DIR / "asl_now_fingerspelling"
+
 # vocab_augmentation.csv gloss column is the input to build_target_vocab.py
 # (see gloss_model/config.py's AUGMENTATION_DATA_PATH for the same file used
 # by Stage 3 -- reused here rather than duplicated, per CLAUDE.md).
