@@ -44,6 +44,15 @@ WLASL_METADATA_URL = (
     "https://raw.githubusercontent.com/dxli94/WLASL/master/" "start_kit/WLASL_v0.3.json"
 )
 
+# --- Committed, self-recorded fingerspelling alphabet (FINGERSPELLING_PLAN.md) ---
+# NOT gitignored, unlike DATA_DIR above: project-owned recordings with no
+# WLASL licensing question. `.gitignore` carries an explicit negation for
+# `raw/*.mp4` below its global `*.mp4` rule.
+FINGERSPELLING_DIR = POSE_LIBRARY_DIR / "fingerspelling"
+FINGERSPELLING_RAW_DIR = FINGERSPELLING_DIR / "raw"
+FINGERSPELLING_POSES_DIR = FINGERSPELLING_DIR / "poses"
+FINGERSPELLING_MANIFEST_PATH = FINGERSPELLING_POSES_DIR / "manifest.json"
+
 # vocab_augmentation.csv gloss column is the input to build_target_vocab.py
 # (see gloss_model/config.py's AUGMENTATION_DATA_PATH for the same file used
 # by Stage 3 -- reused here rather than duplicated, per CLAUDE.md).

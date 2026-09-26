@@ -20,6 +20,9 @@ build/
 data/raw/
 pose_library/data/
 *.mp4
+# Self-recorded fingerspelling alphabet IS committed (project-owned, see
+# pose_library/FINGERSPELLING_PLAN.md) -- must stay below the *.mp4 rule.
+!pose_library/fingerspelling/raw/*.mp4
 *.avi
 gloss_model/checkpoints*/
 *.zip
