@@ -2,8 +2,9 @@ import styles from "./StatusStrip.module.css";
 
 /**
  * @typedef {"idle"|"loading"|"ready"|"low_confidence"|"not_found"|"error"
- *   |"connecting"|"service_starting"|"mic_starting"|"listening"|"translating"|"signing"} StripState
- * The last six are live-speech states (`pipeline/STAGE1_2_PLAN.md` Section 5).
+ *   |"awaiting_ok"|"connecting"|"service_starting"|"mic_starting"|"listening"|"translating"
+ *   |"signing"} StripState
+ * The last seven are live-speech states (`pipeline/STAGE1_2_PLAN.md` Section 5).
  */
 
 const STATE_CONFIG = {
@@ -13,6 +14,7 @@ const STATE_CONFIG = {
   low_confidence: { dotClass: "dotError", label: "LOW-CONFIDENCE SIGN" },
   not_found: { dotClass: "dotError", label: "NO SIGN FOUND" },
   error: { dotClass: "dotError", label: "ERROR" },
+  awaiting_ok: { dotClass: "dotAmber", label: "CONFIRM THE NOTICE TO START" },
   connecting: { dotClass: "dotAmber", label: "CONNECTING…", pulse: true },
   service_starting: { dotClass: "dotAmber", label: "TRANSLATION SERVICE STARTING…", pulse: true },
   mic_starting: { dotClass: "dotAmber", label: "STARTING MIC…", pulse: true },
@@ -22,6 +24,7 @@ const STATE_CONFIG = {
 };
 
 const LIVE_STATES = new Set([
+  "awaiting_ok",
   "connecting",
   "service_starting",
   "mic_starting",

@@ -168,6 +168,7 @@ function LiveTranscript({ entries, partial }) {
  *   speech forces loop off; STAGE1_2_PLAN.md Section 5).
  * @param {Object} [props.live] - Live-speech controls and state (omitted in
  *   tests of typed input only): `supported`, `unsupportedReason`, `micOn`,
+ *   `idleMessage` (the placeholder text for the current live state),
  *   `onToggleMic`, `active` (mic on or live phrases still playing),
  *   `privacyPrompt`, `onAcknowledgePrivacy`, `onCancelPrivacy`,
  *   `statusMessage`, `errorMessage`, `droppedCount`, `entries`, `partial`.
@@ -295,7 +296,7 @@ export function CaptionBand({
             </div>
           ) : (
             <p className={styles.glossPlaceholder}>
-              {live?.micOn ? "LISTENING — START SPEAKING" : "ENTER A WORD BELOW TO BEGIN"}
+              {live?.idleMessage ?? "ENTER A WORD BELOW TO BEGIN"}
             </p>
           )}
           {source ? <p className={styles.source}>SOURCE: {source}</p> : null}

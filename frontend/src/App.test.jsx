@@ -690,3 +690,28 @@ describe("App integration: live speech (fake recognizer)", () => {
     expect(mic).toHaveAttribute("aria-describedby", "mic-disabled-reason");
   });
 });
+
+describe("App integration: live-mode prompts never claim to be listening early", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    stubFetchWithLetters(["a"]);
+  });
+
+  it("while the privacy notice waits for OK, nothing says LISTENING", async () => {
+    const fake = createFakeAsr();
+    render(<App asr={fake.asr} glossClient={fakeGlossClient()} />);
+    fireEvent.click(screen.getByRole("button", { name: "MIC" }));
+
+    expect(await screen.findByText("CONFIRM THE NOTICE TO START")).toBeInTheDocument();
+    expect(
+      screen.getAllByText("CONFIRM THE NOTICE BELOW TO START LISTENING").length
+    ).toBeGreaterThan(0);
+    expect(screen.queryByText(/LISTENING — START SPEAKING/)).not.toBeInTheDocument();
+    expect(fake.instances).toHaveLength(0);
+
+    fireEvent.click(screen.getByRole("button", { name: "OK" }));
+    await waitFor(() => expect(fake.instances).toHaveLength(1));
+    act(() => fake.emit({ type: "listening" }));
+    expect(screen.getAllByText("LISTENING — START SPEAKING").length).toBeGreaterThan(0);
+  });
+});

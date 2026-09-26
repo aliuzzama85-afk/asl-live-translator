@@ -25,6 +25,16 @@ const NO_WORD_BOUNDARIES = [];
 const NOTHING_PLAYABLE_HOLD_MS = 1500;
 
 const LIVE_UNSUPPORTED_REASON = "LIVE SPEECH NEEDS CHROME, EDGE, OR SAFARI";
+
+/** The idle prompt, saying exactly where live mode is -- never "listening"
+ * before the recognizer actually is (e.g. while the privacy notice is still
+ * waiting for OK). */
+function liveIdleMessage(live) {
+  if (live.privacyPrompt) return "CONFIRM THE NOTICE BELOW TO START LISTENING";
+  if (live.listening) return "LISTENING — START SPEAKING";
+  if (live.micRequested) return "STARTING…";
+  return "ENTER A WORD BELOW TO BEGIN";
+}
 const LOOP_DISABLED_REASON = "LOOP IS OFF DURING LIVE SPEECH";
 
 /** True when a word batch's results are for exactly `words`. For one render
@@ -278,7 +288,9 @@ export function App({ asr: asrOverride, glossClient } = {}) {
 
   // Live mode's own states take over the strip while it's active.
   let liveStripState = null;
-  if (live.serviceStartupMessage) {
+  if (live.privacyPrompt) {
+    liveStripState = "awaiting_ok";
+  } else if (live.serviceStartupMessage) {
     liveStripState = live.serviceState === "loading" ? "service_starting" : "connecting";
   } else if (liveStage === "playing") liveStripState = "signing";
   else if (liveStage === "loading" || live.queue.translating) liveStripState = "translating";
@@ -330,9 +342,7 @@ export function App({ asr: asrOverride, glossClient } = {}) {
             abortMessage={abortMessage}
             missingMessage={missingMessage}
             missingDetail={missingDetail}
-            idleMessage={
-              live.micRequested ? "LISTENING — START SPEAKING" : "ENTER A WORD BELOW TO BEGIN"
-            }
+            idleMessage={liveIdleMessage(live)}
           />
         )}
       </main>
@@ -356,6 +366,7 @@ export function App({ asr: asrOverride, glossClient } = {}) {
           supported: live.supported,
           unsupportedReason: live.supported ? null : LIVE_UNSUPPORTED_REASON,
           micOn: live.micRequested,
+          idleMessage: liveIdleMessage(live),
           onToggleMic: live.toggleMic,
           active: liveActive,
           privacyPrompt: live.privacyPrompt,

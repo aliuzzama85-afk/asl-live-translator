@@ -10,12 +10,16 @@
  * shortens the pause between phrases, to exercise the 3-phrase backlog.
  */
 
-/** Real phrases whose checkpoints_v2 gloss is known (Section 3), plus one with
- * an out-of-library word, so fingerspelling is exercised too. */
+/** Phrases whose real checkpoints_v2 gloss was checked in the browser:
+ * "where is the bathroom" -> WHERE BE BATHROOM (WHERE fingerspelled),
+ * "can you help me find my phone" -> CAN X-YOU HELP X-I FIND X-MY PHONE (all
+ * signed), "my dog is sick" -> X-MY DOG BE DESC-SICK (DOG fingerspelled).
+ * ("I need a taxi" was tried and dropped: the model glosses taxi as
+ * TITTLE.) */
 export const DEFAULT_SCRIPT = [
   "where is the bathroom",
   "can you help me find my phone",
-  "I need a taxi",
+  "my dog is sick",
 ];
 
 /**
