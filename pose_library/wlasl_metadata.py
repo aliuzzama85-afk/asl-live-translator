@@ -10,11 +10,11 @@ from __future__ import annotations
 
 import json
 import logging
-import re
 from pathlib import Path
 from typing import Any
 
 from pose_library import config
+from pose_library.gloss_tokens import normalize_gloss_token
 
 logger = logging.getLogger(__name__)
 
@@ -93,14 +93,11 @@ def extract_vocab_stems(
     with Path(csv_path).open(encoding="utf-8") as f:
         for row in csv.DictReader(f):
             for token in row["gloss"].split():
-                if token.startswith("X-"):
-                    continue  # pronoun marker, not an independent sign
-                if not re.search(r"[A-Za-z]", token):
-                    continue  # pure punctuation, e.g. "." or "?"
-                token = token.removeprefix("DESC-")
-                token = token.strip(".,?!").lower()
-                if token:
-                    stems.add(token)
+                # The per-token rule is shared with live playback
+                # (pipeline/gloss_server.py) -- see gloss_tokens.py.
+                stem = normalize_gloss_token(token)
+                if stem:
+                    stems.add(stem)
     return stems
 
 
