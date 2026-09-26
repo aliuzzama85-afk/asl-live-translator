@@ -376,7 +376,10 @@ argued from how `pipeline/` will actually consume this (per `CLAUDE.md`'s explic
 ## 5. Fingerspelling fallback
 
 > **Superseded 2026-09-26** by [`FINGERSPELLING_PLAN.md`](FINGERSPELLING_PLAN.md).
-> The recording decision below (self-record all 26 letters) stands, but the
+> The data-source decision below (self-record all 26 letters) no longer
+> holds: 24 letters now come from the MIT-licensed `sid220/asl-now-fingerspelling`
+> dataset, and only J and Z (motion letters the dataset lacks) are
+> self-recorded (`FINGERSPELLING_PLAN.md` Section 2b). The
 > `get_fingerspelling_sequence()`/`resolve_gloss_word()` interface sketched
 > here was never built. It was redesigned so the resolution lives in the
 > frontend next to `stitchTimelines` (see that doc's Section 4). The storage

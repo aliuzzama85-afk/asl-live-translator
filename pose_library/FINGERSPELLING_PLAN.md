@@ -1,8 +1,10 @@
-# Fingerspelling Alphabet Plan (v1): Self-Recorded A–Z Fallback
+# Fingerspelling Alphabet Plan (v1): A–Z Fallback
 
 Scope: when a gloss word isn't in the 118-word WLASL pose library, spell it out
-letter by letter with a self-recorded 26-letter ASL fingerspelling alphabet,
-instead of skipping it with "NOT FOUND". This supersedes `pose_library/PLAN.md`
+letter by letter with a 26-letter ASL fingerspelling alphabet, instead of
+skipping it with "NOT FOUND". The letters now come from the MIT-licensed
+`sid220/asl-now-fingerspelling` dataset (24 letters, Section 2b), with
+self-recording (Section 1) for the gap the dataset can't fill. This supersedes `pose_library/PLAN.md`
 Section 5's earlier sketch (`get_fingerspelling_sequence()` /
 `resolve_gloss_word()` — **never built**, and designed before
 `stitchTimelines()` existed; see Section 4 for why it's redesigned rather than
@@ -16,13 +18,17 @@ hooks/usePoseSequences.js,hooks/usePoseSequence.js,components/CaptionBand.jsx}`,
 `frontend/vite.config.js`, `.gitignore`, and real pose JSON/manifest data on
 disk (details in Section 2).
 
-**Data status up front, stated plainly**: the 26 letters are **not recorded
-yet**. Recording them requires a person signing on camera, which cannot be
-automated. Everything else — recording tool, extraction, manifest build,
-frontend integration, UI, tests — is built and verified against **synthetic
-placeholder data** (clearly labeled, living under `tests/fixtures/`, never
-under `pose_library/fingerspelling/`), so the pipeline is ready the moment
-real recordings exist. See Section 7 for the exact manual steps.
+**Data status up front, stated plainly (updated 2026-09-26)**: **24 of the
+26 letters have real data**, converted from the MIT-licensed
+[`sid220/asl-now-fingerspelling`](https://huggingface.co/datasets/sid220/asl-now-fingerspelling)
+dataset (Section 2b). **J and Z are still missing**: the dataset has no motion
+data for them, and they're motion letters. Filling them requires recording
+just those two with the recorder in Section 1 (Section 7). Words containing J
+or Z are skipped with a clear message until then. This doc was first written
+when *no* letters existed and the plan was to self-record all 26; Sections 1
+and 2 describe that recording path, which remains valid for J/Z (or any
+letter someone wants to re-record). Synthetic placeholder letters under
+`tests/fixtures/fingerspelling_synthetic/` still exist for plumbing tests only.
 
 ---
 
@@ -177,9 +183,97 @@ Section 3's original recommendation: raw recordings
 **committed**, not gitignored — self-recorded, project-owned content, with
 none of WLASL's licensing questions. `.gitignore`'s global `*.mp4` rule gets
 one explicit negation for `pose_library/fingerspelling/raw/*.mp4`.
-Expected size: roughly 0.3–1MB per clip (26 clips, a few seconds each), on
-the order of 10–25MB total — acceptable for a one-time asset; revisit
-(e.g. Git LFS) only if re-recordings accumulate history bloat.
+Expected size: roughly 0.3–1MB per clip. Now that 24 letters come from the
+dataset (Section 2b), only the recorded letters (J, Z) have raw clips, so
+~1–2MB, not the original 10–25MB estimate.
+
+---
+
+## 2b. Data source: the asl-now-fingerspelling dataset (2026-09-26)
+
+**24 of the 26 letters now come from a real, MIT-licensed third-party
+dataset, not from self-recording and not from synthetic placeholders**:
+[`sid220/asl-now-fingerspelling`](https://huggingface.co/datasets/sid220/asl-now-fingerspelling)
+on Hugging Face ("ASLNow!", by Sidney Trzepacz), pinned to revision
+`9b3c96ae0adb7744a2c9fc72692842e6b3e25e33`. License record, with both
+primary sources quoted verbatim:
+[`fingerspelling/THIRD_PARTY_LICENSE_asl-now-fingerspelling.md`](fingerspelling/THIRD_PARTY_LICENSE_asl-now-fingerspelling.md).
+Converter: `python -m pose_library.convert_hf_fingerspelling`. **J and Z are
+not available from this source** (see below). The recorder in Section 1 is
+still the way to fill them in.
+
+### What the data actually is — inspected, not assumed
+All 2,122 sample files at that revision were downloaded and read:
+- **26 folders, one per letter**, 53–155 samples each (A 65, B 69, C 53,
+  D 72, E 57, F 61, G 95, H 69, I 68, J 93, K 64, L 84, M 88, N 84, O 98,
+  P 72, Q 97, R 75, S 83, T 68, U 106, V 83, W 75, X 106, Y 82, Z 155).
+- **Every file is exactly one frame**: a JSON list of 21 `{x, y, z}` points,
+  matching the dataset card. No file in any letter has a second frame, a
+  timestamp, or any other field.
+- **J and Z have no motion data.** They have 93 and 155 files, but each is
+  the same single still frame as every other letter, a snapshot of a letter
+  that is really a motion (PLAN.md Section 5). Holding one still frame, or
+  interpolating between two unrelated ones, would show a motion that wasn't
+  captured and misrepresent the sign. So **J and Z are not converted**; any
+  word containing them is skipped with `NO FINGERSPELLING FOR "J"`, via the
+  existing missing-letter handling (Section 3). No new code path was needed.
+- **No handedness label**, and mixed hands: a 2D palm-orientation test splits
+  every letter roughly 60/40 (B: 52/17), and a 3D chirality measure
+  (the palm-plane normal against the side the fingertips curl toward) gives
+  per-letter splits that vary from 14/51 (A) to 50/47 (Q). Real
+  left-handed participants would give a roughly constant ratio, so this
+  can't be trusted as a label. Handedness is recorded as `"unlabeled"`
+  rather than guessed.
+- **41 of the 1,874 static-letter samples have a landmark outside the
+  image** (hand partly out of frame, so MediaPipe extrapolated). These are
+  excluded. Every letter keeps at least 48 usable samples.
+
+### Compatibility with this project's pipeline — checked, not assumed
+The dataset came from MediaPipe's **Web Hand Landmarker**, not the Python
+**Holistic Landmarker** `extract.py` uses. Both emit the same 21-point hand
+topology in the same index order (`extract.HAND_LANDMARK_NAMES`: wrist, thumb
+CMC→tip, then index/middle/ring/pinky MCP→tip), with x/y normalized to the
+image and z relative to the wrist. So the values are placed into the
+48-landmark frame **unchanged**: in the right-hand slot (a convention only,
+since the renderer draws both slots the same way), with the other hand and
+the 6 pose-subset points as the `(0,0,0)` "not detected" sentinel, exactly
+like a one-handed recorded letter. Verified on every converted letter: the
+stored landmarks equal the source file's values exactly.
+
+### Choosing one sample per letter: the medoid
+Each letter uses its **medoid**, the real sample with the lowest *median*
+shape distance to that letter's other usable samples. Shape distance is the
+mean per-landmark 2D distance after anchoring the wrist at the origin and
+scaling by wrist→middle-MCP length. Orientation is **kept**, because it's
+part of some letters (G/H point sideways, P/Q point down), and z is dropped
+(too loosely scaled to weigh equally). Why not the suggested centroid or
+median pose: with mixed hands, a per-landmark average blends mirror images
+into a hand nobody signed. The medoid is always one whole, real sample,
+from the densest group, so an outlier can't win. The median rather than the sum
+keeps a few extreme samples from skewing it. Deterministic, and independent
+of file order (tested).
+
+### Format of a converted letter
+Identical to a recorded static letter (Section 2): `PoseSequence` JSON, 30
+fps, the one chosen frame **held for 12 frames (0.4s, `LETTER_HOLD_SECONDS`)**.
+A hold of a real pose, not a synthesized motion. Unlike a recorded hold it
+has no natural micro-motion, since there is only one frame. `source` in the
+pose JSON is `hf:sid220/asl-now-fingerspelling:<Letter>/<uuid>.json`, shown
+in the app's source line. The manifest entry (`build_dataset_letter_entry`,
+sharing `_letter_entry` with recorded letters) carries `source`,
+`source_url`, `license`, and a `dataset_sample` block (dataset, revision,
+exact file, selection method, median distance, sample counts). There is no
+`recording` block, because nothing was recorded.
+
+### Storage and precedence
+- The raw download is a re-fetchable cache in the **gitignored**
+  `pose_library/data/asl_now_fingerspelling/`. Only the 24 converted letters
+  (~600KB) are committed. 11 real sample files are committed as test fixtures
+  (`tests/fixtures/asl_now_sample/`, same MIT notice).
+- **A recording always wins**: `build_fingerspelling` replaces a dataset
+  letter when a recording of it exists (an explicit choice), and the converter
+  never overwrites a self-recorded letter. Each tool only *removes* entries it
+  owns, so a failed or absent recording never deletes a dataset letter.
 
 ---
 
@@ -228,10 +322,10 @@ letter lookup is the URL prefix.
   **whole word is skipped**, with the missing letters named (`SKIPPED: "QUIZ"
   (NO FINGERSPELLING FOR "Q", "Z")`). Spelling it with the gap would show a
   *different* word ("UI" for "QUIZ"), which is worse than skipping.
-- **The alphabet isn't built at all** (letter manifest 404 — the actual
-  state until recordings exist): not an error that aborts the sentence.
-  `not_found` words fall back to exactly today's skip behavior, with honest
-  copy: `FINGERSPELLING ALPHABET NOT RECORDED YET`. Library words still play.
+- **The alphabet isn't available at all** (letter manifest 404, e.g. a
+  checkout or config without the letter library): not an error that aborts
+  the sentence. `not_found` words fall back to plain skipping, with the copy
+  `FINGERSPELLING ALPHABET NOT AVAILABLE`. Library words still play.
 - **A letter fetch fails with a real error** (HTTP 5xx, network): same rule
   as a word fetch error, per `MULTIWORD_PLAN.md` Section 4 — aborts the
   sequence, because a technical failure shouldn't be passed off as a
@@ -276,8 +370,10 @@ only (`CaptionBand.module.css`):
   name, so screen readers don't read "B dash A dash N…". (Implemented as
   hidden text rather than an `aria-label`, which isn't reliably announced
   on a plain `<span>`.)
-- **Source line** reads `SOURCE: fingerspelling:self-recorded` while a
-  letter plays, the same attribution slot WLASL words use.
+- **Source line** reads the playing letter's provenance, in the same
+  attribution slot WLASL words use:
+  `SOURCE: hf:sid220/asl-now-fingerspelling:<Letter>/<uuid>.json` for a
+  dataset letter, `SOURCE: fingerspelling:self-recorded` for a recorded one.
 - **Status strip**: fingerspelled words count as playable, not skipped:
   `READY — 3/3 WORDS (1 FINGERSPELLED)`.
 
@@ -341,20 +437,24 @@ synthetic hand, the active-letter highlight advances, no overflow at desktop
 and phone sizes.
 
 ### Sign-off criteria
-- **Infrastructure sign-off (this pass)**: everything above passing.
-- **Feature sign-off (after recording)**: all 26 letters recorded and built,
-  `manifest.json` has 26 entries, nothing unexpected flagged
-  `low_confidence`, and a manual check of several real spelled words (at least
-  one containing J or Z) reads correctly **to someone who knows ASL
-  fingerspelling**. The synthetic data only proves the plumbing, not the
-  handshapes.
+- **Infrastructure sign-off**: met (everything above passing).
+- **24-letter data sign-off**: met 2026-09-26. The dataset letters are
+  converted, sanity-checked (landmarks equal the source, non-zero, 12-frame
+  holds), and viewed in a real browser (B, L, V, Y clearly legible; A and O
+  correct but harder to read, as curled-finger letters are in a 2D skeleton).
+- **Feature sign-off (all 26)**: not met. It needs J and Z recorded, plus a
+  check of several real spelled words (at least one with J or Z) by
+  **someone who knows ASL fingerspelling**. That check hasn't happened for
+  the 24 dataset letters either; they were checked by eye only.
 
-### The manual step that remains
-1. `python -m pose_library.record_fingerspelling` — sign all 26 letters.
-2. `python -m pose_library.build_fingerspelling` — extract every letter and
-   write `poses/*.json` + `manifest.json`.
-3. Restart `npm run dev`, then spell a few words and review.
-4. Commit `pose_library/fingerspelling/`.
+### The manual step that remains (J and Z only)
+1. `python -m pose_library.record_fingerspelling --letters jz`: sign J and Z
+   (each is a motion; draw it once when recording starts).
+2. `python -m pose_library.build_fingerspelling`: builds the two recorded
+   letters into the same manifest, alongside the 24 dataset letters (which it
+   doesn't touch).
+3. Restart `npm run dev`, then spell a word with J or Z (e.g. `jazz`) and review.
+4. Commit `pose_library/fingerspelling/` (the two raw clips, poses, manifest).
 
 ---
 

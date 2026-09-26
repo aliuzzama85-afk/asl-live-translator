@@ -151,16 +151,35 @@ design decision, a gotcha), update this file before ending the session.
   this. It blocks the commit if gitleaks isn't found (set `GITLEAKS_BIN` if it's
   installed but not on PATH, e.g. a shell started before a `winget install`).
   Retroactive full-history scan on 2026-09-25: 33 commits, no leaks.
-- **Fingerspelling (2026-09-26): infrastructure complete, the 26 letters NOT
-  recorded yet.** Recording is a manual step (someone signs on camera):
-  `python -m pose_library.record_fingerspelling`, then
+- **Fingerspelling (2026-09-26): 24 of 26 letters available, J and Z
+  missing.** The 24 are converted from the **MIT-licensed
+  `sid220/asl-now-fingerspelling` Hugging Face dataset**
+  (`python -m pose_library.convert_hf_fingerspelling`; license record in
+  `pose_library/fingerspelling/THIRD_PARTY_LICENSE_asl-now-fingerspelling.md`).
+  They're not self-recorded and not synthetic. J and Z aren't in the dataset
+  as motion (every sample is one still frame), so they need recording:
+  `python -m pose_library.record_fingerspelling --letters jz`, then
   `python -m pose_library.build_fingerspelling`. See `PROJECT_STATUS.md`
-  Section 13 and `pose_library/FINGERSPELLING_PLAN.md`. Gotchas:
-  - `pose_library/fingerspelling/` is **committed** (self-recorded,
-    project-owned), unlike the gitignored WLASL `pose_library/data/`. The
+  Sections 13–14 and `pose_library/FINGERSPELLING_PLAN.md` Section 2b.
+  Gotchas:
+  - **Never fake J/Z motion** from still frames (holding or interpolating
+    them). That would misrepresent the sign; a missing letter is skipped
+    with a clear message instead.
+  - The dataset has **no handedness label** and mixes hands, so don't
+    average samples per landmark (that blends mirror images). The
+    converter picks each letter's medoid (a real sample).
+  - **Each tool only removes letter entries it owns** (by manifest
+    `source`): `build_fingerspelling` never deletes a dataset letter, and
+    the converter never overwrites a recorded one. A successful recording
+    replaces a dataset letter on purpose.
+  - The raw dataset download is a gitignored, re-fetchable cache
+    (`pose_library/data/asl_now_fingerspelling/`, pinned revision in
+    `config.ASL_NOW_REVISION`). Only converted letters are committed.
+  - `pose_library/fingerspelling/` is **committed** (dataset-converted and
+    self-recorded letters), unlike the gitignored WLASL `pose_library/data/`. The
     `.gitignore` negation `!pose_library/fingerspelling/raw/*.mp4` must stay
     *below* the global `*.mp4` rule or it silently stops applying.
-  - A **missing** letter manifest means "alphabet not recorded yet" to the
+  - A **missing** letter manifest means "alphabet not available" to the
     frontend (skip gracefully); never write an empty `{}` one, which would
     read as "every letter missing". `build_fingerspelling` enforces this.
   - Synthetic placeholder letters live only in
