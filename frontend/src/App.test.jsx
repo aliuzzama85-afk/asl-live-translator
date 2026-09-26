@@ -2,10 +2,11 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { act, render, screen, fireEvent, waitFor } from "@testing-library/react";
 
 import { App } from "./App.jsx";
 import captionStyles from "./components/CaptionBand.module.css";
+import { createFakeAsr } from "./test/fakeRecognizer.js";
 
 /**
  * Integration test for the App shell, per `frontend/PLAN.md` Section 6's
@@ -514,5 +515,178 @@ describe("App integration: fingerspelling with the real converted letters", () =
     // Then A, from the dataset.
     await waitFor(() => expect(activeLetter()).toBe("A"), { timeout: 4000 });
     expect(screen.getByText(/^SOURCE: hf:sid220\/asl-now-fingerspelling:A\//)).toBeInTheDocument();
+  });
+});
+
+/**
+ * Live speech, end to end -- with a FAKE recognizer (it implements the ASR
+ * adapter interface; see src/test/fakeRecognizer.js) and a fake gloss client
+ * (it stands in for the local gloss server). Everything after the gloss
+ * client -- the queue, `setSubmittedWords`, the real usePoseSequences,
+ * fingerspelling, stitchTimelines, SkeletonCanvas -- is the real code. Pose
+ * data is the same fixtures the tests above use (real manifest entries,
+ * synthetic frames; synthetic letters).
+ */
+const GLOSSES = {
+  about: ["about"],
+  "about phone": ["about", "phone"],
+  "a cab": ["cab"],
+  "just pronouns": [],
+};
+
+function fakeGlossClient({ health = "ready" } = {}) {
+  return {
+    waitForGlossService: vi.fn(async () => ({ state: health })),
+    glossPhrase: vi.fn(async (text, phraseId) => ({
+      ok: true,
+      result: {
+        phrase_id: phraseId,
+        text,
+        gloss: (GLOSSES[text] ?? []).join(" ").toUpperCase(),
+        words: GLOSSES[text] ?? [],
+        dropped: [],
+        inference_ms: 5,
+      },
+    })),
+  };
+}
+
+async function turnMicOn() {
+  fireEvent.click(screen.getByRole("button", { name: "MIC" }));
+  // First use: the privacy notice must be acknowledged before listening.
+  fireEvent.click(await screen.findByRole("button", { name: "OK" }));
+}
+
+describe("App integration: live speech (fake recognizer)", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    stubFetchWithLetters(["a", "b", "c"]);
+  });
+
+  it("speech -> transcript -> translating -> signing, through the real playback path", async () => {
+    const fake = createFakeAsr();
+    const gloss = fakeGlossClient();
+    render(<App asr={fake.asr} glossClient={gloss} />);
+
+    await turnMicOn();
+    await waitFor(() => expect(fake.instances).toHaveLength(1));
+    act(() => fake.emit({ type: "listening" }));
+    expect(screen.getByText("LISTENING")).toBeInTheDocument();
+
+    act(() => fake.emit({ type: "partial", text: "about ph" }));
+    expect(screen.getByText(/about ph/)).toBeInTheDocument();
+
+    act(() => fake.emit({ type: "final", text: "about phone", at: performance.now() }));
+    expect(gloss.glossPhrase).toHaveBeenCalledWith("about phone", 1);
+
+    await waitFor(() => {
+      expect(screen.getByRole("img", { name: "ASL sign skeleton animation" })).toBeInTheDocument();
+    });
+    expect(screen.getByRole("heading", { name: "ABOUT" })).toBeInTheDocument();
+    expect(screen.getByText("PHONE")).toBeInTheDocument();
+    // The status strip says SIGNING, and the transcript line tags the phrase.
+    expect(screen.getByText("SIGNING")).toBeInTheDocument();
+    expect(screen.getByText("about phone")).toBeInTheDocument();
+    expect(screen.getByText(/· SIGNING/)).toBeInTheDocument();
+    expect(screen.getByText("SPEECH→SIGN")).toBeInTheDocument();
+    expect(screen.getByText(/\d+ms/)).toBeInTheDocument();
+  });
+
+  it("a spoken out-of-library word is fingerspelled", async () => {
+    const fake = createFakeAsr();
+    render(<App asr={fake.asr} glossClient={fakeGlossClient()} />);
+    await turnMicOn();
+    await waitFor(() => expect(fake.instances).toHaveLength(1));
+    act(() => fake.emit({ type: "final", text: "a cab", at: performance.now() }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "FINGERSPELLED: CAB" })).toBeInTheDocument();
+    });
+  });
+
+  it("queues a second phrase until the first finishes signing", async () => {
+    const fake = createFakeAsr();
+    render(<App asr={fake.asr} glossClient={fakeGlossClient()} />);
+    await turnMicOn();
+    await waitFor(() => expect(fake.instances).toHaveLength(1));
+    act(() => {
+      fake.emit({ type: "final", text: "about", at: performance.now() });
+      fake.emit({ type: "final", text: "a cab", at: performance.now() });
+    });
+
+    await waitFor(() => expect(screen.getByRole("heading", { name: "ABOUT" })).toBeInTheDocument());
+    expect(screen.getByText(/SIGNING — 1 PHRASE QUEUED/)).toBeInTheDocument();
+    // Only after ABOUT has finished playing does the queued phrase start.
+    await waitFor(
+      () => expect(screen.getByRole("heading", { name: "FINGERSPELLED: CAB" })).toBeInTheDocument(),
+      { timeout: 8000 }
+    );
+  }, 15000);
+
+  it("a phrase with nothing to sign says so and doesn't stall the queue", async () => {
+    const fake = createFakeAsr();
+    render(<App asr={fake.asr} glossClient={fakeGlossClient()} />);
+    await turnMicOn();
+    await waitFor(() => expect(fake.instances).toHaveLength(1));
+    act(() => {
+      fake.emit({ type: "final", text: "just pronouns", at: performance.now() });
+      fake.emit({ type: "final", text: "about", at: performance.now() });
+    });
+    await waitFor(() => expect(screen.getByRole("heading", { name: "ABOUT" })).toBeInTheDocument());
+  });
+
+  it("LOOP is visibly disabled, with its reason, while the mic is on", async () => {
+    const fake = createFakeAsr();
+    render(<App asr={fake.asr} glossClient={fakeGlossClient()} />);
+    await turnMicOn();
+
+    const loopButton = screen.getByRole("button", { name: "LOOP" });
+    expect(loopButton).toBeDisabled();
+    expect(screen.getByText("LOOP IS OFF DURING LIVE SPEECH")).toBeInTheDocument();
+    expect(loopButton).toHaveAttribute("aria-describedby", "loop-disabled-reason");
+    // Typing is disabled too, with the reason in the placeholder.
+    expect(screen.getByLabelText("WORD")).toBeDisabled();
+  });
+
+  it("a denied microphone turns the mic off with a clear message", async () => {
+    const fake = createFakeAsr();
+    render(<App asr={fake.asr} glossClient={fakeGlossClient()} />);
+    await turnMicOn();
+    await waitFor(() => expect(fake.instances).toHaveLength(1));
+    act(() => fake.emit({ type: "error", code: "not-allowed", message: "" }));
+
+    expect(screen.getByText(/MICROPHONE BLOCKED/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "MIC" })).toHaveAttribute("aria-pressed", "false");
+  });
+
+  it("an unreachable gloss service is reported, and listening never starts", async () => {
+    const fake = createFakeAsr();
+    render(<App asr={fake.asr} glossClient={fakeGlossClient({ health: "unreachable" })} />);
+    await turnMicOn();
+
+    await waitFor(() => {
+      expect(screen.getByText(/TRANSLATION SERVICE NOT RUNNING/)).toBeInTheDocument();
+    });
+    expect(fake.instances).toHaveLength(0);
+    expect(screen.getByRole("button", { name: "MIC" })).toHaveAttribute("aria-pressed", "false");
+  });
+
+  it("the privacy notice is shown once, then remembered", async () => {
+    const fake = createFakeAsr();
+    const { unmount } = render(<App asr={fake.asr} glossClient={fakeGlossClient()} />);
+    await turnMicOn();
+    unmount();
+
+    render(<App asr={fake.asr} glossClient={fakeGlossClient()} />);
+    fireEvent.click(screen.getByRole("button", { name: "MIC" }));
+    expect(screen.queryByText(/SPEECH IS PROCESSED BY YOUR BROWSER/)).not.toBeInTheDocument();
+  });
+
+  it("without the Web Speech API, MIC is disabled and says why", () => {
+    render(<App asr={{ supported: false, kind: "none", createRecognizer: null }} />);
+    const mic = screen.getByRole("button", { name: "MIC" });
+    expect(mic).toBeDisabled();
+    expect(screen.getByText("LIVE SPEECH NEEDS CHROME, EDGE, OR SAFARI")).toBeInTheDocument();
+    expect(mic).toHaveAttribute("aria-describedby", "mic-disabled-reason");
   });
 });

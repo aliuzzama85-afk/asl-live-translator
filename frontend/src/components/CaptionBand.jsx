@@ -71,6 +71,54 @@ function SpelledLetters({ word }) {
   );
 }
 
+/** What each live phrase status looks like on the transcript line
+ * (`pipeline/STAGE1_2_PLAN.md` Sections 5-6). `done` shows no tag. */
+const PHRASE_STATUS_TAG = {
+  waiting: "WAITING",
+  translating: "TRANSLATING…",
+  queued: "QUEUED",
+  signing: "SIGNING",
+  done: null,
+  nothing_to_sign: "NOTHING TO SIGN",
+  dropped: "SKIPPED — FELL BEHIND",
+};
+
+const NOT_TRANSLATED_REASON = {
+  unreachable: "SERVICE UNREACHABLE",
+  timeout: "SERVICE UNREACHABLE",
+  rate_limited: "TOO MANY REQUESTS",
+  not_ready: "SERVICE STARTING",
+  input_too_long: "TOO LONG",
+};
+
+function phraseTag(entry) {
+  if (entry.status === "not_translated") {
+    return `NOT TRANSLATED (${NOT_TRANSLATED_REASON[entry.reason] ?? "ERROR"})`;
+  }
+  return PHRASE_STATUS_TAG[entry.status] ?? null;
+}
+
+/**
+ * The live transcript line: the latest phrase heard (with what happened to
+ * it), then the words still being recognized. Only the finished phrase is
+ * announced to screen readers; announcing every interim word would flood
+ * them.
+ */
+function LiveTranscript({ entries, partial }) {
+  const latest = entries[entries.length - 1] ?? null;
+  const tag = latest ? phraseTag(latest) : null;
+  if (!latest && !partial) return null;
+  return (
+    <p className={styles.liveLine}>
+      <span aria-live="polite">
+        {latest ? <span className={styles.liveFinal}>{latest.text}</span> : null}
+        {tag ? <span className={styles.liveTag}> · {tag}</span> : null}
+      </span>
+      {partial ? <span className={styles.livePartial}> {partial}</span> : null}
+    </p>
+  );
+}
+
 /**
  * The bottom band: multi-word search input, playback controls, the current
  * sequence rendered as a row of words with the playing word highlighted,
@@ -115,6 +163,14 @@ function SpelledLetters({ word }) {
  *   shown under `missingMessage`.
  * @param {boolean} props.wasTruncated - True when the last submission had
  *   more than `MAX_WORDS` words and was capped.
+ * @param {string|null} [props.loopDisabledReason] - When set, LOOP is
+ *   disabled and this reason is shown as visible text next to it (live
+ *   speech forces loop off; STAGE1_2_PLAN.md Section 5).
+ * @param {Object} [props.live] - Live-speech controls and state (omitted in
+ *   tests of typed input only): `supported`, `unsupportedReason`, `micOn`,
+ *   `onToggleMic`, `active` (mic on or live phrases still playing),
+ *   `privacyPrompt`, `onAcknowledgePrivacy`, `onCancelPrivacy`,
+ *   `statusMessage`, `errorMessage`, `droppedCount`, `entries`, `partial`.
  */
 export function CaptionBand({
   onSearch,
@@ -130,8 +186,11 @@ export function CaptionBand({
   missingMessage,
   missingDetail,
   wasTruncated,
+  loopDisabledReason = null,
+  live = null,
 }) {
   const [inputValue, setInputValue] = useState("");
+  const liveActive = Boolean(live?.active);
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -169,6 +228,47 @@ export function CaptionBand({
         </div>
       ) : null}
 
+      {live?.privacyPrompt ? (
+        <div className={styles.privacyBanner} role="status" aria-live="polite">
+          <span>
+            SPEECH IS PROCESSED BY YOUR BROWSER&apos;S SPEECH SERVICE (E.G. GOOGLE IN CHROME), NOT
+            ON THIS DEVICE
+          </span>
+          <span className={styles.privacyActions}>
+            <button
+              type="button"
+              className={styles.controlButton}
+              onClick={live.onAcknowledgePrivacy}
+            >
+              OK
+            </button>
+            <button type="button" className={styles.controlButton} onClick={live.onCancelPrivacy}>
+              CANCEL
+            </button>
+          </span>
+        </div>
+      ) : null}
+
+      {live?.statusMessage ? (
+        <div className={styles.liveNotice} role="status" aria-live="polite">
+          {live.statusMessage}
+        </div>
+      ) : null}
+
+      {live?.errorMessage ? (
+        <div className={styles.oovBanner} role="status" aria-live="polite">
+          {live.errorMessage}
+        </div>
+      ) : null}
+
+      {live?.droppedCount > 0 ? (
+        <div className={styles.oovBanner} role="status" aria-live="polite">
+          SKIPPED {live.droppedCount} PHRASE{live.droppedCount === 1 ? "" : "S"} — FELL BEHIND
+        </div>
+      ) : null}
+
+      {live ? <LiveTranscript entries={live.entries} partial={live.partial} /> : null}
+
       <div className={styles.mainRow}>
         <div className={styles.glossArea}>
           {captionWords.length > 0 ? (
@@ -194,30 +294,57 @@ export function CaptionBand({
               })}
             </div>
           ) : (
-            <p className={styles.glossPlaceholder}>ENTER A WORD BELOW TO BEGIN</p>
+            <p className={styles.glossPlaceholder}>
+              {live?.micOn ? "LISTENING — START SPEAKING" : "ENTER A WORD BELOW TO BEGIN"}
+            </p>
           )}
           {source ? <p className={styles.source}>SOURCE: {source}</p> : null}
         </div>
 
-        <div className={styles.controls}>
-          <button
-            type="button"
-            className={styles.controlButton}
-            onClick={onTogglePlay}
-            disabled={controlsDisabled}
-            aria-pressed={isPlaying}
-          >
-            {isPlaying ? "PAUSE" : "PLAY"}
-          </button>
-          <button
-            type="button"
-            className={styles.controlButton}
-            onClick={onToggleLoop}
-            disabled={controlsDisabled}
-            aria-pressed={loop}
-          >
-            LOOP
-          </button>
+        <div className={styles.controlsColumn}>
+          <div className={styles.controls}>
+            <button
+              type="button"
+              className={styles.controlButton}
+              onClick={onTogglePlay}
+              disabled={controlsDisabled}
+              aria-pressed={isPlaying}
+            >
+              {isPlaying ? "PAUSE" : "PLAY"}
+            </button>
+            <button
+              type="button"
+              className={styles.controlButton}
+              onClick={onToggleLoop}
+              disabled={controlsDisabled || Boolean(loopDisabledReason)}
+              aria-pressed={loop}
+              aria-describedby={loopDisabledReason ? "loop-disabled-reason" : undefined}
+            >
+              LOOP
+            </button>
+            {live ? (
+              <button
+                type="button"
+                className={styles.controlButton}
+                onClick={live.onToggleMic}
+                disabled={!live.supported}
+                aria-pressed={live.micOn}
+                aria-describedby={live.supported ? undefined : "mic-disabled-reason"}
+              >
+                {live.micOn ? "MIC ON" : "MIC"}
+              </button>
+            ) : null}
+          </div>
+          {loopDisabledReason ? (
+            <p id="loop-disabled-reason" className={styles.controlNote}>
+              {loopDisabledReason}
+            </p>
+          ) : null}
+          {live && !live.supported ? (
+            <p id="mic-disabled-reason" className={styles.controlNote}>
+              {live.unsupportedReason}
+            </p>
+          ) : null}
         </div>
       </div>
 
@@ -231,11 +358,18 @@ export function CaptionBand({
           className={styles.searchInput}
           value={inputValue}
           onChange={(e) => setInputValue(e.target.value)}
-          placeholder="e.g. about, phone, thanks"
+          placeholder={
+            liveActive
+              ? live.micOn
+                ? "Mic is on — turn it off to type"
+                : "Live phrases still playing…"
+              : "e.g. about, phone, thanks"
+          }
+          disabled={liveActive}
           autoComplete="off"
           spellCheck={false}
         />
-        <button type="submit" className={styles.searchSubmit}>
+        <button type="submit" className={styles.searchSubmit} disabled={liveActive}>
           LOOKUP
         </button>
       </form>

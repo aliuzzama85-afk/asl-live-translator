@@ -204,3 +204,77 @@
   white-space: nowrap;
   border: 0;
 }
+
+/* --- Live speech (pipeline/STAGE1_2_PLAN.md Section 5) --- */
+
+.controlsColumn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--space-1);
+  flex: none;
+}
+
+/* The visible reason next to a disabled control (LOOP during live speech,
+ * MIC without Web Speech support): text, not a hover-only tooltip. */
+.controlNote {
+  font-family: var(--font-family-mono);
+  font-weight: var(--font-label-weight);
+  font-size: var(--font-label-size);
+  letter-spacing: var(--font-label-letter-spacing);
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.liveLine {
+  font-family: var(--font-family-mono);
+  font-weight: var(--font-body-weight);
+  font-size: var(--font-body-size);
+  line-height: var(--font-body-line-height);
+}
+
+.liveFinal {
+  color: var(--color-text-primary);
+}
+
+.liveTag {
+  color: var(--color-accent-amber);
+  font-weight: var(--font-label-weight);
+  text-transform: uppercase;
+}
+
+.livePartial {
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+.liveNotice,
+.privacyBanner {
+  font-family: var(--font-family-mono);
+  font-weight: var(--font-label-weight);
+  font-size: var(--font-label-size);
+  letter-spacing: var(--font-label-letter-spacing);
+  text-transform: uppercase;
+  color: var(--color-text-primary);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-accent-amber);
+}
+
+.privacyBanner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.privacyActions {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.searchInput:disabled,
+.searchSubmit:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}

@@ -1,17 +1,34 @@
 import styles from "./StatusStrip.module.css";
 
 /**
- * @typedef {"idle"|"loading"|"ready"|"low_confidence"|"not_found"|"error"} StripState
+ * @typedef {"idle"|"loading"|"ready"|"low_confidence"|"not_found"|"error"
+ *   |"connecting"|"service_starting"|"mic_starting"|"listening"|"translating"|"signing"} StripState
+ * The last six are live-speech states (`pipeline/STAGE1_2_PLAN.md` Section 5).
  */
 
 const STATE_CONFIG = {
   idle: { dotClass: "dotMuted", label: "STANDBY" },
-  loading: { dotClass: "dotAmber", label: "LOADING…" },
+  loading: { dotClass: "dotAmber", label: "LOADING…", pulse: true },
   ready: { dotClass: "dotReady", label: "READY" },
   low_confidence: { dotClass: "dotError", label: "LOW-CONFIDENCE SIGN" },
   not_found: { dotClass: "dotError", label: "NO SIGN FOUND" },
   error: { dotClass: "dotError", label: "ERROR" },
+  connecting: { dotClass: "dotAmber", label: "CONNECTING…", pulse: true },
+  service_starting: { dotClass: "dotAmber", label: "TRANSLATION SERVICE STARTING…", pulse: true },
+  mic_starting: { dotClass: "dotAmber", label: "STARTING MIC…", pulse: true },
+  listening: { dotClass: "dotReady", label: "LISTENING" },
+  translating: { dotClass: "dotAmber", label: "TRANSLATING…", pulse: true },
+  signing: { dotClass: "dotReady", label: "SIGNING" },
 };
+
+const LIVE_STATES = new Set([
+  "connecting",
+  "service_starting",
+  "mic_starting",
+  "listening",
+  "translating",
+  "signing",
+]);
 
 /**
  * The top band: console-telemetry-styled status strip. A square LED-style
@@ -36,6 +53,11 @@ const STATE_CONFIG = {
  * @param {number} [props.fingerspelledCount] - Words fingerspelled instead
  *   of signed. They count as playable, not skipped
  *   (`pose_library/FINGERSPELLING_PLAN.md` Section 5).
+ * @param {string} [props.latencyLabel] - `"FETCH"` (typed input: this
+ *   stage's own fetch time) or `"SPEECH→SIGN"` (live: from the recognizer
+ *   finalizing a phrase to its signing starting). Both are measured.
+ * @param {number} [props.queuedCount] - Live phrases waiting (being
+ *   translated or queued for the avatar), shown as "— N PHRASES QUEUED".
  */
 export function StatusStrip({
   state,
@@ -44,9 +66,11 @@ export function StatusStrip({
   wordCount = 0,
   skippedCount = 0,
   fingerspelledCount = 0,
+  latencyLabel = "FETCH",
+  queuedCount = 0,
 }) {
   const config = STATE_CONFIG[state] ?? STATE_CONFIG.idle;
-  const pulsing = state === "loading" && !reducedMotion;
+  const pulsing = Boolean(config.pulse) && !reducedMotion;
 
   // The composite "N/M WORDS (K SKIPPED)" count is independent of which
   // dot color/state is showing -- a low-confidence word among an otherwise
@@ -66,6 +90,9 @@ export function StatusStrip({
     ].filter(Boolean);
     label = `READY — ${playable}/${wordCount} WORDS${notes.length > 0 ? ` (${notes.join(", ")})` : ""}`;
   }
+  if (LIVE_STATES.has(state) && queuedCount > 0) {
+    label = `${config.label} — ${queuedCount} PHRASE${queuedCount === 1 ? "" : "S"} QUEUED`;
+  }
 
   return (
     <header className={styles.strip}>
@@ -77,7 +104,7 @@ export function StatusStrip({
         <span className={styles.label}>{label}</span>
       </div>
       <div className={styles.latency}>
-        <span className={styles.latencyLabel}>FETCH</span>
+        <span className={styles.latencyLabel}>{latencyLabel}</span>
         <span className={styles.latencyValue}>
           {latencyMs === null ? "--" : `${Math.round(latencyMs)}ms`}
         </span>

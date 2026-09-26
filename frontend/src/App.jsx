@@ -1,11 +1,13 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { StatusStrip } from "./components/StatusStrip.jsx";
 import { SkeletonCanvas } from "./components/SkeletonCanvas.jsx";
 import { CaptionBand } from "./components/CaptionBand.jsx";
+import { useLiveMode } from "./hooks/useLiveMode.js";
 import { usePoseSequences } from "./hooks/usePoseSequences.js";
 import { usePrefersReducedMotion } from "./hooks/usePrefersReducedMotion.js";
 import { stitchTimelines } from "./lib/stitchTimelines.js";
+import { selectAsr } from "./lib/asr/index.js";
 import {
   formatSkippedBanner,
   lettersNeeded,
@@ -17,6 +19,24 @@ import styles from "./App.module.css";
 /** Stable empty fallback, so the `useMemo`s that depend on `wordBoundaries`
  * aren't recomputed on every render while nothing is loaded. */
 const NO_WORD_BOUNDARIES = [];
+
+/** How long a live phrase with nothing playable (every word skipped) stays on
+ * screen before the queue moves on, so the reason can be read. */
+const NOTHING_PLAYABLE_HOLD_MS = 1500;
+
+const LIVE_UNSUPPORTED_REASON = "LIVE SPEECH NEEDS CHROME, EDGE, OR SAFARI";
+const LOOP_DISABLED_REASON = "LOOP IS OFF DURING LIVE SPEECH";
+
+/** True when a word batch's results are for exactly `words`. For one render
+ * after `words` changes, the hook still returns the previous batch, which
+ * must not be mistaken for the new phrase's. */
+function batchIsFor(batch, words) {
+  return (
+    batch.status === "ready" &&
+    batch.results.length === words.length &&
+    batch.results.every((r, i) => r.word === undefined || r.word === words[i])
+  );
+}
 
 /** Composes a "no sign found" message for one or more missing words, using
  * the same wording the original single-word app used (`NO SIGN FOUND FOR
@@ -43,14 +63,36 @@ function formatMissingWordsMessage(words) {
  * `usePoseSequences` hook against the letter library, and each letter
  * becomes one more unit in the same `stitchTimelines` call -- a
  * fingerspelled word plays through exactly the path a sentence of words does.
+ *
+ * Live speech (`pipeline/STAGE1_2_PLAN.md` Section 4): glossed phrases from
+ * `useLiveMode`'s queue feed the *same* `setSubmittedWords` typing uses, one
+ * phrase at a time, taking the next only when the avatar is idle. Nothing
+ * downstream of `submittedWords` knows whether words were typed or spoken.
+ *
+ * @param {Object} [props]
+ * @param {import("./lib/asr/index.js").AsrChoice} [props.asr] - Overrides
+ *   ASR selection (tests inject a fake recognizer here).
+ * @param {Object} [props.glossClient] - Overrides the gloss server client.
  */
-export function App() {
+export function App({ asr: asrOverride, glossClient } = {}) {
   const [submittedWords, setSubmittedWords] = useState([]);
   const [wasTruncated, setWasTruncated] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [loop, setLoop] = useState(false);
   const [currentFrameIndex, setCurrentFrameIndex] = useState(0);
   const reducedMotion = usePrefersReducedMotion();
+
+  const asr = useMemo(() => asrOverride ?? selectAsr(), [asrOverride]);
+  const live = useLiveMode(glossClient ? { asr, glossClient } : { asr });
+  // Live playback: "idle" (take the next phrase when one is ready), "loading"
+  // (its poses are being fetched), "playing" (the avatar is signing it).
+  const [liveStage, setLiveStage] = useState("idle");
+  const [livePhrase, setLivePhrase] = useState(null);
+  const [speechToSignMs, setSpeechToSignMs] = useState(null);
+  const liveStageRef = useRef(liveStage);
+  const livePhraseRef = useRef(livePhrase);
+  liveStageRef.current = liveStage;
+  livePhraseRef.current = livePhrase;
 
   const batch = usePoseSequences(submittedWords);
   const results = batch.results;
@@ -176,9 +218,55 @@ export function App() {
     setWasTruncated(truncated);
   }, []);
 
+  // --- live speech ---------------------------------------------------------
+  const { takeNext, markDone, readyCount, waitingCount } = live.queue;
+  const liveActive = live.micRequested || liveStage !== "idle" || waitingCount > 0;
+
+  // Loop would block the queue forever, so it's off (and visibly disabled,
+  // see CaptionBand) while live speech is active. It stays off afterwards;
+  // the user turns it back on.
+  useEffect(() => {
+    if (liveActive) setLoop(false);
+  }, [liveActive]);
+
+  // Idle and a phrase is ready: hand its words to the existing pipeline.
+  useEffect(() => {
+    if (liveStage !== "idle" || readyCount === 0) return;
+    const next = takeNext();
+    if (!next) return;
+    setLivePhrase(next);
+    setWasTruncated(false);
+    setSubmittedWords(next.words);
+    setLiveStage("loading");
+  }, [liveStage, readyCount, takeNext]);
+
+  // The phrase's poses have resolved: start signing it -- or, if nothing in
+  // it is playable, leave its message up briefly, then move on.
+  const liveBatchReady = liveStage === "loading" && batchIsFor(batch, submittedWords) && !isLoading;
+  useEffect(() => {
+    if (!liveBatchReady || !livePhrase) return undefined;
+    if (isLoaded) {
+      setIsPlaying(true);
+      setLiveStage("playing");
+      setSpeechToSignMs(performance.now() - livePhrase.finalAt);
+      return undefined;
+    }
+    const timer = setTimeout(() => {
+      markDone(livePhrase.phraseId);
+      setLiveStage("idle");
+    }, NOTHING_PLAYABLE_HOLD_MS);
+    return () => clearTimeout(timer);
+  }, [liveBatchReady, livePhrase, isLoaded, markDone]);
+
   const handleTogglePlay = useCallback(() => setIsPlaying((p) => !p), []);
   const handleToggleLoop = useCallback(() => setLoop((l) => !l), []);
-  const handleEnded = useCallback(() => setIsPlaying(false), []);
+  const handleEnded = useCallback(() => {
+    setIsPlaying(false);
+    if (liveStageRef.current === "playing") {
+      markDone(livePhraseRef.current.phraseId);
+      setLiveStage("idle");
+    }
+  }, [markDone]);
   const handleFrameChange = useCallback((frameIndex) => setCurrentFrameIndex(frameIndex), []);
 
   let stripState = "idle";
@@ -188,12 +276,28 @@ export function App() {
   else if (lowConfidenceEntries.length > 0) stripState = "low_confidence";
   else if (isLoaded) stripState = "ready";
 
+  // Live mode's own states take over the strip while it's active.
+  let liveStripState = null;
+  if (live.serviceStartupMessage) {
+    liveStripState = live.serviceState === "loading" ? "service_starting" : "connecting";
+  } else if (liveStage === "playing") liveStripState = "signing";
+  else if (liveStage === "loading" || live.queue.translating) liveStripState = "translating";
+  else if (live.listening) liveStripState = "listening";
+  else if (live.micRequested) liveStripState = "mic_starting";
+  else if (live.errorMessage) liveStripState = "error";
+  if (liveStripState) stripState = liveStripState;
+
   // Word and letter lookups run one after the other (letters need the word
   // results first), so a spelled sentence's fetch time is both batches.
-  const latencyMs =
+  const fetchMs =
     batch.status === "ready" && !isLoading
       ? batch.fetchMs + (letterBatch.status === "ready" ? letterBatch.fetchMs : 0)
       : null;
+  // In live mode the readout is the measured time from the recognizer
+  // finalizing a phrase to its signing starting: a real number, never a
+  // simulated one.
+  const liveLatency = liveActive || live.listening;
+  const latencyMs = liveLatency ? speechToSignMs : fetchMs;
 
   return (
     <div className={styles.app}>
@@ -204,6 +308,8 @@ export function App() {
         wordCount={submittedWords.length}
         skippedCount={skippedWords.length}
         fingerspelledCount={fingerspelledCount}
+        latencyLabel={liveLatency ? "SPEECH→SIGN" : "FETCH"}
+        queuedCount={liveStripState ? waitingCount : 0}
       />
 
       <main className={styles.stage}>
@@ -224,6 +330,9 @@ export function App() {
             abortMessage={abortMessage}
             missingMessage={missingMessage}
             missingDetail={missingDetail}
+            idleMessage={
+              live.micRequested ? "LISTENING — START SPEAKING" : "ENTER A WORD BELOW TO BEGIN"
+            }
           />
         )}
       </main>
@@ -242,6 +351,22 @@ export function App() {
         missingMessage={missingMessage}
         missingDetail={missingDetail}
         wasTruncated={wasTruncated}
+        loopDisabledReason={liveActive ? LOOP_DISABLED_REASON : null}
+        live={{
+          supported: live.supported,
+          unsupportedReason: live.supported ? null : LIVE_UNSUPPORTED_REASON,
+          micOn: live.micRequested,
+          onToggleMic: live.toggleMic,
+          active: liveActive,
+          privacyPrompt: live.privacyPrompt,
+          onAcknowledgePrivacy: live.acknowledgePrivacy,
+          onCancelPrivacy: live.cancelPrivacy,
+          statusMessage: live.serviceStartupMessage,
+          errorMessage: live.errorMessage,
+          droppedCount: live.queue.droppedCount,
+          entries: live.queue.entries,
+          partial: live.partial,
+        }}
       />
     </div>
   );
@@ -253,7 +378,14 @@ export function App() {
  * whenever words were submitted, nothing resolved, and nothing errored
  * (see `allMissing`'s derivation in `App`), so no separate "submitted but
  * unaccounted for" fallback branch is needed here. */
-function StageMessage({ isLoading, sequenceAborted, abortMessage, missingMessage, missingDetail }) {
+function StageMessage({
+  isLoading,
+  sequenceAborted,
+  abortMessage,
+  missingMessage,
+  missingDetail,
+  idleMessage,
+}) {
   if (isLoading) {
     return (
       <p className={styles.stageMessage} role="status" aria-live="polite">
@@ -285,5 +417,5 @@ function StageMessage({ isLoading, sequenceAborted, abortMessage, missingMessage
       </p>
     );
   }
-  return <p className={styles.stageMessage}>ENTER A WORD BELOW TO BEGIN</p>;
+  return <p className={styles.stageMessage}>{idleMessage}</p>;
 }
