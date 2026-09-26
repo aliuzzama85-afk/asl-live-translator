@@ -441,12 +441,13 @@ describe("App integration: fingerspelling (SYNTHETIC letter data)", () => {
 });
 
 /**
- * Fingerspelling with the REAL converted letters committed in
- * pose_library/fingerspelling/poses/ (from the MIT-licensed
- * sid220/asl-now-fingerspelling dataset -- not synthetic). Pins that the
- * committed data plays through the real pipeline and carries its dataset
- * provenance into the UI, and that J (not available from this source) is
- * reported missing rather than faked.
+ * Fingerspelling with the REAL letters committed in
+ * pose_library/fingerspelling/poses/ -- not synthetic: 24 converted from the
+ * MIT-licensed sid220/asl-now-fingerspelling dataset, plus J and Z
+ * self-recorded (the dataset has no motion data for them). Pins that the
+ * committed data plays through the real pipeline and that each letter
+ * carries its own provenance into the UI. (Missing-letter handling is
+ * covered by the synthetic tests above, independent of the real data.)
  */
 const REAL_LETTER_MANIFEST = JSON.parse(
   fs.readFileSync(
@@ -495,17 +496,23 @@ describe("App integration: fingerspelling with the real converted letters", () =
     await waitFor(() => expect(activeLetter()).toBe("A"), { timeout: 4000 });
   });
 
-  it("reports J as unavailable rather than spelling around it", async () => {
+  it("spells a word with the self-recorded J and Z, each showing its own source", async () => {
     stubFetchWithRealLetters();
     render(<App />);
 
-    await searchFor("jab");
+    await searchFor("jazz");
 
     await waitFor(() => {
-      expect(screen.getAllByText(/NO FINGERSPELLING FOR "J"/)).toHaveLength(2);
+      expect(screen.getByRole("heading", { name: "FINGERSPELLED: JAZZ" })).toBeInTheDocument();
     });
-    expect(
-      screen.queryByRole("img", { name: "ASL sign skeleton animation" })
-    ).not.toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "ASL sign skeleton animation" })).toBeInTheDocument();
+    expect(screen.queryByText(/NO FINGERSPELLING FOR/)).not.toBeInTheDocument();
+    // J plays first, and it's the self-recorded letter, not a dataset one.
+    expect(activeLetter()).toBe("J");
+    expect(realLetterPose("j").source).toBe("fingerspelling:self-recorded");
+    expect(screen.getByText("SOURCE: fingerspelling:self-recorded")).toBeInTheDocument();
+    // Then A, from the dataset.
+    await waitFor(() => expect(activeLetter()).toBe("A"), { timeout: 4000 });
+    expect(screen.getByText(/^SOURCE: hf:sid220\/asl-now-fingerspelling:A\//)).toBeInTheDocument();
   });
 });
