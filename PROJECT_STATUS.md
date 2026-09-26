@@ -1,7 +1,9 @@
 # Project Status
 
-Last updated: 2026-09-25 (build-order step 3, multi-word playback with
-cross-sign interpolation, done — see Section 12).
+Last updated: 2026-09-26 (fingerspelling alphabet: infrastructure
+complete, **letters not yet recorded** — see Section 13). Build-order step 3,
+multi-word playback with cross-sign interpolation, done 2026-09-25 — see
+Section 12.
 Stage 5 formally signed off 2026-09-22 — see Section 11; Stage 4 also
 complete — see Section 10.
 This is a living status doc — update it at the end of a session with
@@ -21,7 +23,7 @@ to pick up exactly where things stand.
 | 1. ASR (speech-to-text) | **Not started** | `pipeline/asr.py` doesn't exist yet; `pipeline/` only has an empty `__init__.py`. |
 | 2. VAD chunking | **Not started** | `pipeline/vad.py` doesn't exist yet. |
 | 3. Gloss translation | **Done — signed off 2026-09-10** | See Section 9. `gloss_model/checkpoints_v2/` is the model to use going forward, superseding v1. |
-| 4. Gloss-to-pose lookup | **Done — see Section 10** | 118-word pose library built from WLASL + MediaPipe, 61 tests passing. Fingerspelling fallback is still open; the WLASL/C-UDA licensing question was resolved 2026-09-26 (local/dev-only indefinitely) — see Section 5. |
+| 4. Gloss-to-pose lookup | **Done — see Section 10** | 118-word pose library built from WLASL + MediaPipe, 61 tests passing. Fingerspelling fallback: infrastructure built, the 26 letters not yet recorded (Section 13). The WLASL/C-UDA licensing question was resolved 2026-09-26 (local/dev-only indefinitely) — see Section 5. |
 | 5. Rendering (frontend) | **Done — signed off 2026-09-22, see Section 11** | Single-word skeleton renderer, feature-complete per `frontend/PLAN.md`'s v1 scope, 25/25 tests passing (`a024993`). Multi-word playback with cross-sign interpolation (build-order step 3) built on top of this — see Section 12. |
 
 ### Stage 3 completion criteria — all met, signed off 2026-09-10 (see Section 9)
@@ -251,11 +253,12 @@ three are also logged in `CLAUDE.md`'s "Known gotchas / decisions log".
    and in `pose_library/PLAN.md` (unverified third-party video-source
    terms, Section 1 and its open questions) would need to be revisited
    before proceeding.
-7. **Fingerspelling alphabet — not built.** `pose_library/PLAN.md` Section 5
-   designs a self-recorded 26-letter alphabet plus
-   `get_fingerspelling_sequence()`/`resolve_gloss_word()`; none of this
-   exists yet, so an OOV gloss word today gets a "not yet available" message
-   rather than a fingerspelled fallback. See Section 10.
+7. **Fingerspelling alphabet — infrastructure complete 2026-09-26, data
+   NOT recorded yet.** Recorder, extraction/manifest build, frontend
+   integration, and UI are built and tested (Section 13), but the 26 letters
+   themselves need a person to sign them on camera. Until then an OOV word
+   shows "FINGERSPELLING ALPHABET NOT RECORDED YET". The exact manual steps
+   are in Section 13.
 8. ~~Multi-word / cross-sign interpolation — not started.~~ **Resolved
    2026-09-25** — designed (`frontend/MULTIWORD_PLAN.md`, `f4fdc82`) and
    built (`7125800`), 40/40 tests passing. See Section 12.
@@ -289,8 +292,11 @@ Loose ends, not blocking step 4 but worth closing out when convenient:
   Stage 5's single-word playback too, not just multi-word transitions. Not
   fixed; a real fix (skip-drawing a zero-sentinel hand, or fading it) is
   future work if it turns out to matter visually in practice.
-- **Fingerspelling alphabet** (Section 5 item 7, Section 10): self-record
-  the 26 letters, implement `resolve_gloss_word()`.
+- **Record the fingerspelling alphabet** (Section 5 item 7, Section 13):
+  the only remaining step for fingerspelling, and it's manual — run
+  `python -m pose_library.record_fingerspelling`, sign all 26 letters, run
+  `python -m pose_library.build_fingerspelling`, review in the browser,
+  commit `pose_library/fingerspelling/`. Full steps in Section 13.
 - ~~WLASL/C-UDA licensing decision~~ **Resolved 2026-09-26** (Section 5
   item 6): local/dev-only indefinitely, `pose_library/data/` never served
   or redistributed publicly.
@@ -528,12 +534,12 @@ session, not assumed):
 
 **Not built**:
 
-- **Fingerspelling fallback.** `pose_library/PLAN.md` Section 5 designs
-  `get_fingerspelling_sequence()`/`resolve_gloss_word()` and a self-recorded
-  26-letter alphabet — none of this exists yet. `lookup.py` only has
-  `get_pose_sequence()`; a miss returns `None`, and Stage 5's frontend
-  (Section 11) handles that miss with a visible "NO SIGN FOUND … FINGERSPELLING
-  NOT YET AVAILABLE" message rather than silently failing or fingerspelling.
+- **Fingerspelling fallback** — *superseded 2026-09-26, see Section 13.*
+  (Original note, kept for the record: `pose_library/PLAN.md` Section 5's
+  `get_fingerspelling_sequence()`/`resolve_gloss_word()` sketch was never
+  built; it was redesigned rather than implemented as sketched, and the
+  resolution now lives in the frontend — see
+  `pose_library/FINGERSPELLING_PLAN.md` Section 4.)
 
 **Resolved 2026-09-26 — kept local/dev-only indefinitely (see Section 5
 item 6 for the decision note).** Original flag, kept for the record:
@@ -777,3 +783,121 @@ cross-submission caching.
 **Sign-off**: build-order step 3 is done. Per `CLAUDE.md`'s build-order
 rule, the next step is **step 4: live speech input** (Stage 1/2, ASR +
 VAD), wired to this now-working core — not yet started, see Section 6.
+
+---
+
+## 13. Fingerspelling alphabet — infrastructure complete, letters NOT recorded (2026-09-26)
+
+**Honest status first: infrastructure-complete, data-incomplete.** Everything
+needed to spell an out-of-library word letter by letter is built, tested,
+and verified in a real browser, but **none of the 26 real letters has been
+recorded**. That takes a person signing on camera, which can't be automated.
+Every test and the manual browser check ran on **synthetic placeholder
+letters** (geometric stand-in hands, not ASL), which prove the plumbing and
+nothing about handshape quality. Until the letters are recorded, the app
+behaves as before for OOV words, with honest copy: "FINGERSPELLING ALPHABET
+NOT RECORDED YET".
+
+Design: `pose_library/FINGERSPELLING_PLAN.md` (`e3c8494`). Built in
+`882fff9` (recorder), `68f7f13` (extraction/manifest build), `898f5c1`
+(frontend integration, UI, synthetic fixtures).
+
+**What was built**, file by file:
+
+- **`pose_library/record_fingerspelling.py`** — webcam recorder
+  (`python -m pose_library.record_fingerspelling`). One OpenCV window,
+  keyboard-driven: SPACE records (3s countdown, then 2.0s for static letters
+  and 2.5s for J/Z), R re-records, N/P next/previous, Q quits; `--letters jz`
+  targets specific letters, and a session resumes at the first unrecorded
+  letter. Takes are 640×480 (matching the WLASL clips the pipeline was
+  validated on), written atomically at the **measured** fps (webcams
+  misreport it, and `extract.py` trusts the file header), saved unmirrored,
+  then immediately checked with the real Holistic extraction ("hand detected
+  in N/M frames").
+- **`pose_library/fingerspelling.py`** — pure logic: letter rules, file
+  layout, and segment selection. A static letter keeps its stillest
+  gap-free 0.4s window (`LETTER_HOLD_SECONDS`); J/Z keep the span where the
+  hand actually moves; the non-signing hand is zero-filled so a resting
+  hand can't pull the camera out. Motion thresholds come from real WLASL
+  per-frame displacement, not guesses.
+- **`pose_library/build_fingerspelling.py`** — `python -m
+  pose_library.build_fingerspelling`: runs every recorded letter through the
+  **unchanged** `extract.py`, writes `pose_library/fingerspelling/poses/
+  <letter>.json` and `manifest.json`. Expected failures are reported rather
+  than raised, and a failed rebuild removes the stale JSON and entry.
+- **`pose_library/manifest.py`** — `build_letter_entry()`: WLASL's entry
+  shape wherever the fields apply (the timeline fields keep their exact
+  meaning, so `reconstructTimeline` consumes letters unchanged); WLASL ids
+  dropped; letter-specific quality flags.
+- **`frontend/src/lib/fingerspelling.js`** — `spellWord`, `lettersNeeded`,
+  `planPlayback`: `not_found` word → letters → playback units shaped exactly
+  like word results. `App.jsx` calls the **same** `usePoseSequences` hook a
+  second time (new optional `basePath: "/fingerspelling"`) and feeds every
+  unit to the **same** `stitchTimelines` call. There is no second rendering path.
+- **UI** (`CaptionBand.jsx`/`.module.css`, `StatusStrip.jsx`) — a spelled
+  word renders in gloss notation (`J-A-D-E`, amber, dotted underline); the
+  playing word highlights the letter being signed; the accessible name is
+  "FINGERSPELLED: JADE"; the strip reads "READY — 3/3 WORDS (1 FINGERSPELLED)".
+- **`frontend/vite.config.js`** — serves `/fingerspelling/*` from
+  `pose_library/fingerspelling/poses/`; `FINGERSPELLING_POSES_DIR` overrides
+  it (used only for the synthetic browser check).
+- **`tests/fixtures/fingerspelling_synthetic/`** + generator
+  `tests/fixtures/make_synthetic_fingerspelling.py` — six SYNTHETIC
+  placeholder letters (a–e, j) in the real file shapes, each labeled
+  `source: "synthetic:placeholder"`. Never inside `pose_library/fingerspelling/`.
+- **`.gitignore`** — negates the global `*.mp4` rule for
+  `pose_library/fingerspelling/raw/*.mp4`: the recordings are project-owned
+  and **are committed**, unlike WLASL data.
+
+**Tests**: **138/138 Python** (88 before, +50: `test_fingerspelling.py`,
+`test_record_fingerspelling.py`, `test_build_fingerspelling.py`, letter-entry
+tests in `test_pose_manifest.py`) and **75/75 frontend** (45 before, +30:
+`fingerspelling.test.js`, `usePoseSequences` `basePath` tests, and 5 new
+`App.test.jsx` integration tests that spell words end to end on synthetic
+letters, including one asserting the highlighted letter advances C → A → B
+during real rAF playback). `ruff`, `black`, `eslint`, `prettier` clean.
+
+**Verified beyond unit tests** (per `CLAUDE.md`'s happy-dom lesson):
+- **Real MediaPipe, no mocks**: `build_alphabet` run on two WLASL clips
+  standing in for recordings (scratch directory only, nothing committed)
+  produced a 12-frame static hold and a 36-frame motion span with honest
+  interior drops. Both were correctly flagged low-confidence, since WLASL
+  signers enter and leave the frame.
+- **Real browser, synthetic letters**: "about jade phone" played ABOUT → J →
+  A → D → E → PHONE; at 375×812 there was no overflow, and a word with
+  unrecorded letters ("quiz") was skipped with the missing letters named.
+- **Real browser, real (empty) alphabet**: "about cab" plays ABOUT and skips
+  CAB as "FINGERSPELLING ALPHABET NOT RECORDED YET". That's the state today.
+
+**Bugs found and fixed during the build, not anticipated in the plan**:
+- Running the build with no recordings wrote an empty `{}` manifest, which
+  the frontend would have read as "alphabet exists, every letter missing"
+  instead of "not recorded yet". The build now never writes an empty
+  manifest and removes one that becomes empty. Regression-tested.
+- `usePoseSequences.js` contained a raw NUL byte (its `words.join` separator)
+  since `7125800`, so git treated the file as binary and none of its diffs
+  were reviewable. It's now the `"\u0000"` escape: same value, text file.
+
+**Sign-off criteria**:
+- **Infrastructure — met 2026-09-26**: everything above.
+- **Feature — NOT met, blocked on recording**: all 26 letters recorded and
+  built, `manifest.json` has 26 entries with nothing unexpectedly
+  `low_confidence`, and several real spelled words (at least one with J or
+  Z) confirmed readable **by someone who knows ASL fingerspelling**.
+
+**Known limitations** (see the plan's Section 6 for the full out-of-scope
+list): digits and punctuation aren't spelled; letters use the generic 200ms
+word transition; 0.4s per letter is a readability guess, not user-tested;
+`DESC-`/`X-` gloss prefixes aren't stripped before spelling; the
+phantom-hand characteristic (Section 12) applies to the zero-filled
+non-signing hand; one take per letter, one signer.
+
+**The exact next manual step** (the only thing left for fingerspelling):
+1. From the repo root with the venv active:
+   `python -m pose_library.record_fingerspelling`. Sign each letter when
+   prompted and re-record any take the window reports as LOW.
+2. `python -m pose_library.build_fingerspelling`. It should report 26/26
+   letters built.
+3. Restart the dev server (`npm run dev` in `frontend/`), spell a few
+   words (e.g. `jazz`, `quick`), and check that they read correctly.
+4. Commit `pose_library/fingerspelling/` (raw videos, poses, manifest).

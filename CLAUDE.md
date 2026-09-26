@@ -151,3 +151,28 @@ design decision, a gotcha), update this file before ending the session.
   this. It blocks the commit if gitleaks isn't found (set `GITLEAKS_BIN` if it's
   installed but not on PATH, e.g. a shell started before a `winget install`).
   Retroactive full-history scan on 2026-09-25: 33 commits, no leaks.
+- **Fingerspelling (2026-09-26): infrastructure complete, the 26 letters NOT
+  recorded yet.** Recording is a manual step (someone signs on camera):
+  `python -m pose_library.record_fingerspelling`, then
+  `python -m pose_library.build_fingerspelling`. See `PROJECT_STATUS.md`
+  Section 13 and `pose_library/FINGERSPELLING_PLAN.md`. Gotchas:
+  - `pose_library/fingerspelling/` is **committed** (self-recorded,
+    project-owned), unlike the gitignored WLASL `pose_library/data/`. The
+    `.gitignore` negation `!pose_library/fingerspelling/raw/*.mp4` must stay
+    *below* the global `*.mp4` rule or it silently stops applying.
+  - A **missing** letter manifest means "alphabet not recorded yet" to the
+    frontend (skip gracefully); never write an empty `{}` one, which would
+    read as "every letter missing". `build_fingerspelling` enforces this.
+  - Synthetic placeholder letters live only in
+    `tests/fixtures/fingerspelling_synthetic/` (`source:
+    "synthetic:placeholder"`). Never copy them into
+    `pose_library/fingerspelling/`, and never present them as real
+    recordings. The manual browser check points the dev server at them via
+    `FINGERSPELLING_POSES_DIR`.
+  - Letters and WLASL words must share `extract.py`'s `LANDMARK_NAMES`:
+    `stitchTimelines`/`lerpPose` blend poses index by index across the
+    boundary, and `SkeletonCanvas` takes its topology from the first unit.
+- **Never put raw control bytes (e.g. NUL) in source files** — write them as
+  escapes (`"\u0000"`). A raw NUL in `usePoseSequences.js` made git treat
+  it as binary, so its diffs were unreviewable, from `7125800` until
+  2026-09-26.

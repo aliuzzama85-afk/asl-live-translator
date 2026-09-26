@@ -375,6 +375,15 @@ argued from how `pipeline/` will actually consume this (per `CLAUDE.md`'s explic
 
 ## 5. Fingerspelling fallback
 
+> **Superseded 2026-09-26** by [`FINGERSPELLING_PLAN.md`](FINGERSPELLING_PLAN.md).
+> The recording decision below (self-record all 26 letters) stands, but the
+> `get_fingerspelling_sequence()`/`resolve_gloss_word()` interface sketched
+> here was never built. It was redesigned so the resolution lives in the
+> frontend next to `stitchTimelines` (see that doc's Section 4). The storage
+> layout in Section 3 (`fingerspelling/alphabet.json`) is also superseded:
+> it's now one JSON per letter plus a manifest, the same shape as the word
+> library. Kept below as the original record.
+
 ### Trigger condition
 Purely a `get_pose_sequence()` miss (`None` return) on a whole gloss word — **not**
 driven by any special marker in the gloss text itself. This is a deliberate

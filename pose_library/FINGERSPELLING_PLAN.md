@@ -271,9 +271,11 @@ only (`CaptionBand.module.css`):
   the letter currently being signed at full `--color-text-primary` and the
   rest `--color-text-muted`. Viewers can follow it letter by letter, like
   the word-level highlight already does for sentences.
-- **Accessibility**: the chip/heading carries an `aria-label` of
-  `"FINGERSPELLED: BANANA"` (screen readers shouldn't read "B dash A dash
-  N…"); the per-letter spans are `aria-hidden`.
+- **Accessibility**: the hyphenated letters are `aria-hidden`, and a
+  visually-hidden `FINGERSPELLED: BANANA` text span carries the accessible
+  name, so screen readers don't read "B dash A dash N…". (Implemented as
+  hidden text rather than an `aria-label`, which isn't reliably announced
+  on a plain `<span>`.)
 - **Source line** reads `SOURCE: fingerspelling:self-recorded` while a
   letter plays, the same attribution slot WLASL words use.
 - **Status strip**: fingerspelled words count as playable, not skipped:

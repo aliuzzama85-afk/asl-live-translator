@@ -422,6 +422,15 @@ actually looked.
 
 ## 5. OOV / fingerspelling fallback
 
+> **Update 2026-09-26**: fingerspelling is now built (infrastructure only;
+> the 26 real letters aren't recorded yet). See
+> `pose_library/FINGERSPELLING_PLAN.md`. It didn't take the
+> `{ status: "fingerspelled", letters }` branch suggested below: a spelled
+> word is expanded into per-letter units fed to the same `stitchTimelines`
+> call (`src/lib/fingerspelling.js`), so the renderer needed no change at
+> all. The miss copy is now reason-specific (e.g. "FINGERSPELLING ALPHABET
+> NOT RECORDED YET"). Kept below as the original record.
+
 Checked `pose_library/lookup.py` directly: **only `get_pose_sequence()`
 exists today**, returning `PoseSequence | None`. The `resolve_gloss_word()` /
 `get_fingerspelling_sequence()` composing functions that `pose_library/PLAN.md`
