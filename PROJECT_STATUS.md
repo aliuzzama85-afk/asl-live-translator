@@ -1,6 +1,8 @@
 # Project Status
 
-Last updated: 2026-09-26 (fingerspelling: **all 26 letters complete**, 24
+Last updated: 2026-09-26 (**build-order step 4, live speech input (Stages 1-2),
+built and automated-tested; a real-microphone test by a person is still
+pending** — see Section 15). Earlier the same day: fingerspelling, **all 26 letters complete**, 24
 from the MIT-licensed `sid220/asl-now-fingerspelling` dataset and J and Z
 self-recorded — see Section 14, which updates Section 13). Build-order step 3,
 multi-word playback with cross-sign interpolation, done 2026-09-25 — see
@@ -21,8 +23,8 @@ to pick up exactly where things stand.
 
 | Stage | Status | Notes |
 |---|---|---|
-| 1. ASR (speech-to-text) | **Not started** | `pipeline/asr.py` doesn't exist yet; `pipeline/` only has an empty `__init__.py`. |
-| 2. VAD chunking | **Not started** | `pipeline/vad.py` doesn't exist yet. |
+| 1. ASR (speech-to-text) | **Built 2026-09-26 — real-mic test pending, see Section 15** | Browser Web Speech API behind an adapter interface (`frontend/src/lib/asr/`); no `pipeline/asr.py` by design (`pipeline/STAGE1_2_PLAN.md` Section 0). |
+| 2. VAD chunking | **Built 2026-09-26 — see Section 15** | The recognizer's own final-result segmentation plus a 12-word guard (`frontend/src/lib/phrases.js`); no Silero VAD / `pipeline/vad.py` by design. Live bridge: `pipeline/gloss_server.py`. |
 | 3. Gloss translation | **Done — signed off 2026-09-10** | See Section 9. `gloss_model/checkpoints_v2/` is the model to use going forward, superseding v1. |
 | 4. Gloss-to-pose lookup | **Done — see Section 10** | 118-word pose library built from WLASL + MediaPipe, 61 tests passing. Fingerspelling fallback: built, all 26 letters (24 from the MIT-licensed asl-now dataset, J and Z self-recorded; Sections 13–14). The WLASL/C-UDA licensing question was resolved 2026-09-26 (local/dev-only indefinitely) — see Section 5. |
 | 5. Rendering (frontend) | **Done — signed off 2026-09-22, see Section 11** | Single-word skeleton renderer, feature-complete per `frontend/PLAN.md`'s v1 scope, 25/25 tests passing (`a024993`). Multi-word playback with cross-sign interpolation (build-order step 3) built on top of this — see Section 12. |
@@ -262,28 +264,34 @@ three are also logged in `CLAUDE.md`'s "Known gotchas / decisions log".
 8. ~~Multi-word / cross-sign interpolation — not started.~~ **Resolved
    2026-09-25** — designed (`frontend/MULTIWORD_PLAN.md`, `f4fdc82`) and
    built (`7125800`), 40/40 tests passing. See Section 12.
-9. **Stage 1/2 (live ASR + VAD) — not started**, per CLAUDE.md's build order
-   (step 4, after step 3 above).
+9. ~~Stage 1/2 (live ASR + VAD) — not started~~ **Built 2026-09-26**
+   (Section 15). Open: a real-microphone test by a person, and the
+   function-word stop-list's review by someone who knows ASL.
+10. **`accelerate==1.14.0` has an open advisory** (PYSEC-2026-3804 /
+    CVE-2026-69112: path traversal in `load_checkpoint_in_model` via a
+    malicious *sharded* checkpoint index), found by `pip-audit` on
+    2026-09-26. No fixed version exists yet. Exposure here looks low (the
+    served checkpoint is a single, project-produced `model.safetensors` with
+    no shard index, on localhost), but `accelerate` is imported on the gloss
+    server's path, so it isn't zero. Re-run `pip-audit` and upgrade when a
+    fix ships (re-verify training behavior, since it's pinned exactly).
 
 ---
 
 ## 6. Exact next steps, in order
 
-Stage 4 (Section 10), Stage 5 (Section 11), and build-order step 3
-(multi-word playback with cross-sign interpolation, Section 12) are all
-done. Per CLAUDE.md's build order, the next official step is **step 4:
-live speech input** (Stage 1/2 — streaming ASR + Silero VAD) wired to the
-now-working core. Nothing about this has been designed yet:
+All four build-order steps are now built: Stage 4 (Section 10), Stage 5
+(Section 11), step 3 multi-word playback (Section 12), fingerspelling
+(Sections 13–14), and step 4 live speech input (Section 15). What remains
+is verification that needs people, not code:
 
-1. **Design Stage 1/2**: streaming ASR (Deepgram or AssemblyAI,
-   `pipeline/asr.py`) and Silero VAD-based phrase chunking
-   (`pipeline/vad.py`), per `CLAUDE.md`'s architecture section — including
-   the in-memory queue so playback never blocks on translation, and how a
-   live phrase's gloss output feeds the multi-word sequence
-   `frontend/MULTIWORD_PLAN.md`/Section 12 already built the playback side
-   for (that side takes an already-glossed word sequence; this step is
-   about producing one live, not consuming it).
-2. **Write tests alongside**, per CLAUDE.md's testing rule.
+1. **A real-microphone test of live speech**, by a person in Chrome
+   (Section 15 has the exact steps). Everything else about Stage 1-2 is
+   automated-tested and checked in a real browser with the scripted
+   recognizer.
+2. **A review by someone who knows ASL**: the gloss output's quality, the
+   live function-word stop-list (`pose_library/gloss_tokens.py`), and the
+   fingerspelling alphabet.
 
 Loose ends, not blocking step 4 but worth closing out when convenient:
 - **"Phantom static hand" rendering characteristic** (Section 12): a
@@ -1018,3 +1026,122 @@ fingerspelling.
 someone who knows ASL fingerspelling. Any letter that reads wrong can be
 re-recorded with `record_fingerspelling --letters <x>` then
 `build_fingerspelling` (a recording replaces the dataset version).
+
+---
+
+## 15. Build-order step 4: live speech input (Stages 1-2) — built; real-mic test pending (2026-09-26)
+
+**Status, exactly**: built, automated-tested, and verified end to end in a
+real browser with the dev-only scripted recognizer (`?asr=fake`) and the
+**real** gloss model. **Not yet done: a test with a real microphone and a
+person speaking** (it can't be automated; steps below), and the ASL-fluency
+review of the function-word stop-list. Design: `pipeline/STAGE1_2_PLAN.md`
+(committed `99d793b`).
+
+**Architecture as built** (why each choice: the plan, Sections 0–4):
+browser mic → Web Speech API (`frontend/src/lib/asr/`, behind an adapter
+interface) → final result = phrase, split if over 12 words
+(`lib/phrases.js`) → `POST /api/gloss` through Vite's proxy to
+`pipeline/gloss_server.py` (stdlib HTTP, `127.0.0.1`, model loaded once) →
+`words` (via the shared `pose_library/gloss_tokens.py` rule) → in-memory
+queue (`hooks/useLivePhraseQueue.js`, max 3 waiting) → the **unchanged**
+`setSubmittedWords` → `usePoseSequences` → fingerspelling →
+`stitchTimelines` → `SkeletonCanvas`. **No `pipeline/asr.py` or
+`pipeline/vad.py`**: the Web Speech API runs only in the browser and never
+exposes the audio, and its own end-of-utterance segmentation already does
+what Silero VAD was planned for (`CLAUDE.md`'s architecture section updated
+to say so).
+
+**What was built**, by commit:
+- `689f4d9` (found along the way) **`npm run lint` never linted `.jsx`
+  files** (ESLint 8 without `--ext`), so every "eslint clean" since Stage 5
+  covered `.js` only. Fixed; `react/prop-types` turned off with the reason
+  recorded; the one real finding (a `useMemo` recomputing every render) fixed.
+- `b2af48c` `pose_library/gloss_tokens.py`: the gloss-token → lookup-word
+  rule extracted from `extract_vocab_stems` (identical 231 stems on the real
+  CSV before/after), plus the playback stop-list (be, do, at, too, would,
+  well, and, to).
+- `07d4c19` `pipeline/gloss_server.py`: `/api/gloss` + `/api/health`, every
+  error code in the plan plus `forbidden_origin`/`not_found`,
+  sanitization, 4KB body cap, token-bucket rate limit, `Origin` check,
+  phrase text never logged.
+- `d9dff7a` the frontend core: ASR adapter (Web Speech + dev-only scripted),
+  phrase chunking, gloss client (timeouts, error mapping, a 15s connect
+  grace), `useLiveTranscription` (restarts, restart-storm cutoff, error
+  messages, flush-on-stop), `useLivePhraseQueue`, `useLiveMode`
+  (privacy notice → service ready → recognizer; one file beyond the plan's
+  list, keeping `App.jsx` readable).
+- `c216f20` UI: MIC button (`MIC` / `MIC ON`), LOOP visibly disabled with
+  its reason, MIC's own disabled reason, privacy notice, live transcript
+  line, live status-strip states, `SPEECH→SIGN` latency.
+- `a4075d6` `npm run dev:live` (Node stdlib, no new dependency), the `/api`
+  proxy, `.env.example` fixes.
+- `4e5c616` a fix found in the browser check (below) and a better demo
+  script.
+
+**Found and fixed during implementation**, beyond the plan:
+- The server replied before reading request bodies, so on Windows clients
+  got a connection reset instead of the JSON error (flaky in tests at first).
+- A cold PyTorch import holds the GIL ~5s, so the server can't answer at
+  all during startup (measured). The frontend now waits out "no answer" for
+  15s, showing `CONNECTING TO TRANSLATION SERVICE…`, before saying "not
+  running".
+- The stage said `LISTENING — START SPEAKING` while the privacy notice was
+  still waiting for OK. Prompts now follow the real state.
+- `I need a taxi` glosses to `X-I NEED TITTLE` (the model doesn't know
+  "taxi"), so it was replaced in the demo script by `my dog is sick`
+  (DOG fingerspelled correctly).
+
+**Tests**: **200/200 Python** (159 before; +41: `test_gloss_tokens.py`,
+`test_gloss_server.py` over real HTTP with the model faked, plus one
+real-checkpoint test that ran, since `checkpoints_v2` is present, and skips
+where it isn't). **132/132 frontend** (77 before; +55: phrases, gloss
+client, Web Speech adapter mapping, `useLiveTranscription` and
+`useLivePhraseQueue` with a fake recognizer implementing the adapter
+interface, and 10 App integration tests through the real playback
+pipeline). `ruff`, `black`, `eslint` (now really covering `.jsx`),
+`prettier`, `npm audit` (0), and `gitleaks` clean. `pip-audit` flags one
+**pre-existing** pinned dependency, `accelerate` (Section 5 item 10).
+
+**Verified in a real browser** (Vite + the real gloss server via
+`npm run dev:live`, the real `checkpoints_v2` model, `?asr=fake`):
+- The proxy chain works (`/api/health` ready, `POST /api/gloss` with the
+  browser's `Origin` accepted, 191ms inference).
+- First use: privacy notice → OK → connecting → listening. MIC ON, LOOP
+  disabled with "LOOP IS OFF DURING LIVE SPEECH", typing disabled with its
+  reason.
+- "where is the bathroom" → transcript `· TRANSLATING…` → `· SIGNING`, the
+  avatar spelled W-H-E-R-E (dataset letters) then signed BATHROOM (WLASL),
+  **SPEECH→SIGN 238ms**. The next phrase's interim words showed while the
+  first was signing.
+- Queueing: phrases 2 and 3 waited (`SIGNING — 2 PHRASES QUEUED`); phrase 2
+  started only after phrase 1 finished. (The browser pane was throttled to
+  ~1 animation frame/s during this run, so later latencies, e.g. 15.5s,
+  reflect slowed playback, not the app.)
+- Backlog: 6 phrases in a burst → 1 signing, 3 queued, `SKIPPED 2 PHRASES —
+  FELL BEHIND`.
+- Server not running (`npm run dev` alone): `CONNECTING…` for the 15s grace,
+  then `TRANSLATION SERVICE NOT RUNNING — START IT WITH: python -m
+  pipeline.gloss_server (OR npm run dev:live)`, and MIC turned itself off.
+
+**Known limitations** (plan Section 7 for the full out-of-scope list):
+translation quality is now visible live (e.g. "hello" → HALF, "taxi" →
+TITTLE); pronouns (`X-` markers) are dropped, not signed; the 12-word
+guard, 3-phrase backlog, and stop-list are informed guesses to tune; only
+Chrome was targeted (Edge/Safari should work through the same interface
+but are unchecked); Chrome sends audio to Google's speech service
+(disclosed in the UI).
+
+**The remaining manual step — a real microphone test** (needs a person):
+1. From `frontend/`, run `npm run dev:live` and wait for `[gloss] ... Model ready`.
+2. Open http://localhost:5173 in **Chrome**, click **MIC**, read the notice,
+   click **OK**, and allow the microphone when the browser asks.
+3. Say, pausing briefly after each: "where is the bathroom", "can you help
+   me find my phone", "my dog is sick". Expect the words to appear on the
+   transcript line, `TRANSLATING…`, then signing, with `SPEECH→SIGN` around
+   1–2s on an idle avatar.
+4. Check the failure paths: click MIC off and on and block the mic in the
+   site settings (expect `MICROPHONE BLOCKED…`); stop the terminal and use
+   `npm run dev` alone (expect `TRANSLATION SERVICE NOT RUNNING…`); open the
+   page in Firefox (expect MIC disabled, "LIVE SPEECH NEEDS CHROME, EDGE, OR
+   SAFARI").

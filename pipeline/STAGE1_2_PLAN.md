@@ -596,3 +596,27 @@ Unchanged: `gloss_model/inference.py`, `usePoseSequences`,
   checked, not assumed.
 - **The function-word stop-list** is a judgment call that needs a check by
   someone who knows ASL (Section 4).
+
+---
+
+## Implementation notes (2026-09-26)
+
+Built as planned, with these differences, each recorded in
+`PROJECT_STATUS.md` Section 15:
+
+- **Extra files**: `frontend/src/hooks/useLiveMode.js` (privacy notice →
+  service ready → recognizer, so `App.jsx` stays readable),
+  `frontend/src/lib/asr/index.js` (the one place an ASR adapter is chosen),
+  `frontend/src/lib/asr/scriptedRecognizer.js` (the `?asr=fake` recognizer),
+  and `frontend/src/test/fakeRecognizer.js`.
+- **Extra error code**: `forbidden_origin` (403) for the `Origin` check, and
+  `not_found` (404) for unknown routes.
+- **Startup**: a cold PyTorch import keeps the server from answering for
+  ~5s, so the frontend retries "no answer" for 15s before reporting "not
+  running".
+- **MIC button label**: `MIC ON` rather than `LISTENING` while on, because it
+  is "on" before it is actually listening (connecting, privacy notice); the
+  status strip shows the true state.
+- **Typing is disabled** while live phrases are still playing after the mic
+  goes off, not only while the mic is on (the queue owns `submittedWords`
+  until it drains).

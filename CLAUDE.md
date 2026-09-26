@@ -8,8 +8,20 @@ communication (not a certified interpreter replacement — do not build or marke
 as one).
 
 ## Architecture (5 stages)
-1. **ASR (speech-to-text)**: streaming, via Deepgram or AssemblyAI. Lives in `pipeline/asr.py`.
-2. **VAD chunking**: Silero VAD detects pauses, emits complete phrases. Lives in `pipeline/vad.py`.
+1. **ASR (speech-to-text)**: v1 uses the browser's **Web Speech API** (no key, no cost),
+   so it lives in the frontend, not Python: `frontend/src/lib/asr/`, behind a small adapter
+   interface (`start`/`stop` + one event stream). A streaming provider (Deepgram, AssemblyAI)
+   is a future adapter plugged in at `frontend/src/lib/asr/index.js`; nothing downstream
+   changes. There is **no `pipeline/asr.py`**: the browser owns the mic and no audio ever
+   reaches Python. See `pipeline/STAGE1_2_PLAN.md`.
+2. **Phrase chunking**: v1 uses the recognizer's own end-of-utterance ("final result")
+   segmentation plus a 12-word length guard (`frontend/src/lib/phrases.js`). There is **no
+   `pipeline/vad.py` / Silero VAD**: the Web Speech API never exposes the audio, and a
+   second segmenter would only disagree with the recognizer's. Revisit only for a raw-audio
+   provider (which ship their own endpointing anyway).
+   **Live bridge**: `pipeline/gloss_server.py` (stdlib HTTP, `127.0.0.1`) serves the
+   gloss model to the browser through Vite's `/api` proxy. Run both with
+   `npm run dev:live` (in `frontend/`).
 3. **Gloss translation**: fine-tuned T5-small, English → ASL gloss order. Lives in `gloss_model/`.
    Training data: ASLG-PC12 (Hugging Face Datasets).
 4. **Gloss-to-pose lookup**: MediaPipe-extracted keypoint sequences per gloss word, sourced
@@ -19,6 +31,8 @@ as one).
 
 Data flows through an in-memory queue so playback never blocks on translation —
 the avatar always stays a phrase or two "behind" live speech, like a human interpreter.
+(Implemented in the frontend: `frontend/src/hooks/useLivePhraseQueue.js`, capped at 3
+waiting phrases, dropping the oldest with a visible "fell behind" notice.)
 
 ## Reference implementations (check these before writing new logic)
 - MediaPipe (google/mediapipe) — hand/pose landmarks
@@ -194,4 +208,29 @@ design decision, a gotcha), update this file before ending the session.
 - **Never put raw control bytes (e.g. NUL) in source files** — write them as
   escapes (`"\u0000"`). A raw NUL in `usePoseSequences.js` made git treat
   it as binary, so its diffs were unreviewable, from `7125800` until
-  2026-09-26.
+  2026-09-26. Invisible characters (zero-width space, soft hyphen, BOM) are
+  the same hazard; `\uXXXX` escapes written through some editing tools come
+  out as the literal characters, so check new files for them.
+- **`npm run lint` only linted `.js` files until 2026-09-26.** ESLint 8's
+  `eslint .` skips `.jsx` without `--ext`, so every component went unlinted.
+  The script is now `eslint . --ext .js,.jsx,.mjs`. When a lint command
+  passes, check it actually covered the files you care about.
+- **Live speech (Stage 1-2, 2026-09-26)**: `npm run dev:live` starts the gloss
+  server and Vite together; `npm run dev` alone still works but live mode will
+  say the translation service isn't running. Gotchas:
+  - The gloss server defaults to `gloss_model/checkpoints_v2`;
+    `gloss_model/config.CHECKPOINT_DIR` still points at v1, so never rely on
+    that default for serving.
+  - PyTorch's cold import holds the GIL ~5s, so the server can't answer at
+    all at first. The frontend retries for 15s (`CONNECT_GRACE_MS`) before
+    saying "not running".
+  - A `BaseHTTPRequestHandler` must read the request body before replying,
+    or Windows resets the connection and the client never sees the JSON
+    error. `gloss_server._read_body` does this first on every POST.
+  - Web Speech API audio goes to the browser vendor's speech service (Google
+    in Chrome); the UI discloses this before first use. Never remove that.
+  - The dev-only `?asr=fake` scripted recognizer (`lib/asr/scriptedRecognizer.js`)
+    runs the whole live path without a mic; it's excluded from prod builds by
+    `import.meta.env.DEV`.
+  - **A real microphone test still needs a person** (see `PROJECT_STATUS.md`
+    Section 15).
