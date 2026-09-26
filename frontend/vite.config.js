@@ -103,8 +103,18 @@ function posesServingMiddleware() {
   };
 }
 
+// The local gloss server (pipeline/gloss_server.py). Proxying /api/* to it
+// keeps the browser on one origin, so no CORS is needed
+// (pipeline/STAGE1_2_PLAN.md Section 1). Same port variable the server reads.
+const GLOSS_SERVER_PORT = process.env.GLOSS_SERVER_PORT || "8765";
+
 export default defineConfig({
   plugins: [react(), posesServingMiddleware()],
+  server: {
+    proxy: {
+      "/api": { target: `http://127.0.0.1:${GLOSS_SERVER_PORT}`, changeOrigin: false },
+    },
+  },
   test: {
     // happy-dom over jsdom: no concrete reason to prefer jsdom here -- this
     // suite doesn't depend on any jsdom-only behavior, and happy-dom is
