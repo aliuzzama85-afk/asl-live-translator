@@ -1,3 +1,6 @@
+import fs from "node:fs";
+import path from "node:path";
+
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 
@@ -433,5 +436,75 @@ describe("App integration: fingerspelling (SYNTHETIC letter data)", () => {
     expect(fetchMock.mock.calls.some(([url]) => String(url).startsWith("/fingerspelling/"))).toBe(
       false
     );
+  });
+});
+
+/**
+ * Fingerspelling with the REAL converted letters committed in
+ * pose_library/fingerspelling/poses/ (from the MIT-licensed
+ * sid220/asl-now-fingerspelling dataset -- not synthetic). Pins that the
+ * committed data plays through the real pipeline and carries its dataset
+ * provenance into the UI, and that J (not available from this source) is
+ * reported missing rather than faked.
+ */
+const REAL_LETTER_MANIFEST = JSON.parse(
+  fs.readFileSync(
+    path.resolve(__dirname, "../../pose_library/fingerspelling/poses/manifest.json"),
+    "utf-8"
+  )
+);
+
+function realLetterPose(letter) {
+  return JSON.parse(
+    fs.readFileSync(
+      path.resolve(__dirname, `../../pose_library/fingerspelling/poses/${letter}.json`),
+      "utf-8"
+    )
+  );
+}
+
+function stubFetchWithRealLetters() {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (url) => {
+      const p = String(url);
+      if (p === "/poses/manifest.json") return jsonResponse({});
+      if (p === "/fingerspelling/manifest.json") return jsonResponse(REAL_LETTER_MANIFEST);
+      const match = p.match(/^\/fingerspelling\/([a-z])\.json$/);
+      if (match && REAL_LETTER_MANIFEST[match[1]]) return jsonResponse(realLetterPose(match[1]));
+      return jsonResponse({ error: "not_found" }, 404);
+    })
+  );
+}
+
+describe("App integration: fingerspelling with the real converted letters", () => {
+  it("spells a word end to end from the committed dataset letters, with their provenance", async () => {
+    stubFetchWithRealLetters();
+    render(<App />);
+
+    await searchFor("cab");
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "FINGERSPELLED: CAB" })).toBeInTheDocument();
+    });
+    expect(screen.getByRole("img", { name: "ASL sign skeleton animation" })).toBeInTheDocument();
+    const source = REAL_LETTER_MANIFEST.c && realLetterPose("c").source;
+    expect(source).toMatch(/^hf:sid220\/asl-now-fingerspelling:C\//);
+    expect(screen.getByText(`SOURCE: ${source}`)).toBeInTheDocument();
+    await waitFor(() => expect(activeLetter()).toBe("A"), { timeout: 4000 });
+  });
+
+  it("reports J as unavailable rather than spelling around it", async () => {
+    stubFetchWithRealLetters();
+    render(<App />);
+
+    await searchFor("jab");
+
+    await waitFor(() => {
+      expect(screen.getAllByText(/NO FINGERSPELLING FOR "J"/)).toHaveLength(2);
+    });
+    expect(
+      screen.queryByRole("img", { name: "ASL sign skeleton animation" })
+    ).not.toBeInTheDocument();
   });
 });
