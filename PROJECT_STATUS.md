@@ -21,7 +21,7 @@ to pick up exactly where things stand.
 | 1. ASR (speech-to-text) | **Not started** | `pipeline/asr.py` doesn't exist yet; `pipeline/` only has an empty `__init__.py`. |
 | 2. VAD chunking | **Not started** | `pipeline/vad.py` doesn't exist yet. |
 | 3. Gloss translation | **Done — signed off 2026-09-10** | See Section 9. `gloss_model/checkpoints_v2/` is the model to use going forward, superseding v1. |
-| 4. Gloss-to-pose lookup | **Done — see Section 10** | 118-word pose library built from WLASL + MediaPipe, 61 tests passing. Fingerspelling fallback and the WLASL/C-UDA licensing question are still open — see Section 5. |
+| 4. Gloss-to-pose lookup | **Done — see Section 10** | 118-word pose library built from WLASL + MediaPipe, 61 tests passing. Fingerspelling fallback is still open; the WLASL/C-UDA licensing question was resolved 2026-09-26 (local/dev-only indefinitely) — see Section 5. |
 | 5. Rendering (frontend) | **Done — signed off 2026-09-22, see Section 11** | Single-word skeleton renderer, feature-complete per `frontend/PLAN.md`'s v1 scope, 25/25 tests passing (`a024993`). Multi-word playback with cross-sign interpolation (build-order step 3) built on top of this — see Section 12. |
 
 ### Stage 3 completion criteria — all met, signed off 2026-09-10 (see Section 9)
@@ -225,14 +225,15 @@ three are also logged in `CLAUDE.md`'s "Known gotchas / decisions log".
      inferred from the HF tag) — but the provenance mismatch this project
      independently discovered raises a real, unresolved question about
      whether that label was validly applied to begin with. **Not fully
-     resolved; needs the user's explicit sign-off before any public release,
-     same as the WLASL/C-UDA item below** — not blocking local prototyping.
+     resolved; needs the user's explicit sign-off before any public release**
+     — not blocking local prototyping.
 4. ~~README.md limitation note~~ **Resolved 2026-09-22** — added to
    README.md (rule-generated, Europarl-register-corpus quality ceiling).
 5. ~~Stage 4 approach itself is entirely undiscussed~~ **Resolved** — Stage 4
    was designed (`pose_library/PLAN.md`) and built; see Section 10.
-6. **WLASL/C-UDA licensing ambiguity (Stage 4) — open, not resolved.**
-   `pose_library/PLAN.md` Section 1 flags a genuine ambiguity: whether an
+6. ~~WLASL/C-UDA licensing ambiguity (Stage 4)~~ **Resolved 2026-09-26** —
+   see the resolution note at the end of this item. Original analysis, kept
+   for the record: `pose_library/PLAN.md` Section 1 flags a genuine ambiguity: whether an
    extracted keypoint sequence counts as a C-UDA "Result" (unrestricted) or
    still "Data" in modified form (restricted) isn't settled by the license
    text's own de-minimis test, and WLASL's own README separately states "no
@@ -240,6 +241,16 @@ three are also logged in `CLAUDE.md`'s "Known gotchas / decisions log".
    gitignored/never redistributed, but this needs the user's explicit
    sign-off before any public release or commercial pivot — flagging again,
    not resolved here. See Section 10.
+
+   **Resolved 2026-09-26** — decision made to keep this project
+   local/dev-only indefinitely, never serving or redistributing
+   `pose_library/data/` contents publicly. This usage is squarely
+   "Computational Use" per C-UDA and within WLASL's own academic-use
+   framing. If this decision is ever revisited (e.g. a public demo), the
+   unresolved questions documented above (Data vs Result classification)
+   and in `pose_library/PLAN.md` (unverified third-party video-source
+   terms, Section 1 and its open questions) would need to be revisited
+   before proceeding.
 7. **Fingerspelling alphabet — not built.** `pose_library/PLAN.md` Section 5
    designs a self-recorded 26-letter alphabet plus
    `get_fingerspelling_sequence()`/`resolve_gloss_word()`; none of this
@@ -280,13 +291,12 @@ Loose ends, not blocking step 4 but worth closing out when convenient:
   future work if it turns out to matter visually in practice.
 - **Fingerspelling alphabet** (Section 5 item 7, Section 10): self-record
   the 26 letters, implement `resolve_gloss_word()`.
-- **WLASL/C-UDA licensing decision** (Section 5 item 6, Section 10): get the
-  user's explicit sign-off on the current local-only policy, or resolve the
-  ambiguity, before any public/commercial step.
+- ~~WLASL/C-UDA licensing decision~~ **Resolved 2026-09-26** (Section 5
+  item 6): local/dev-only indefinitely, `pose_library/data/` never served
+  or redistributed publicly.
 - **ASLG-PC12 licensing sign-off** (Section 5 item 3): license identified
   (CC BY-NC 4.0, checked 2026-09-25) but the Europarl-provenance question it
-  raised needs the user's explicit sign-off before any public release, same
-  as the WLASL item above.
+  raised needs the user's explicit sign-off before any public release.
 - **Automated layout/visual regression testing (e.g. Playwright)** — not
   yet added; manual browser checks are the only current safeguard against
   this class of bug (see the Section 11 amendment).
@@ -525,8 +535,9 @@ session, not assumed):
   (Section 11) handles that miss with a visible "NO SIGN FOUND … FINGERSPELLING
   NOT YET AVAILABLE" message rather than silently failing or fingerspelling.
 
-**Open, unresolved — needs an explicit decision before any public/commercial
-use:** `pose_library/PLAN.md` Section 1 flags a genuine, still-unresolved
+**Resolved 2026-09-26 — kept local/dev-only indefinitely (see Section 5
+item 6 for the decision note).** Original flag, kept for the record:
+`pose_library/PLAN.md` Section 1 flags a genuine, still-unresolved
 licensing ambiguity around WLASL-derived pose data under the Computational
 Use of Data Agreement (C-UDA): whether an extracted keypoint sequence counts
 as a "Result" (Section 2.2/5.5, unrestricted) or is still "Data" in modified
@@ -535,8 +546,9 @@ which the license text doesn't settle either way — and WLASL's own README
 separately, plainly states "no commercial usage is allowed." Current policy
 (per PLAN.md's recommendation, never formally revisited by the user): treat
 all WLASL-derived pose data as local-only, gitignored, never redistributed,
-never sold. **This is flagged again here, not resolved** — it needs the
-user's explicit sign-off before any public release or commercial pivot.
+never sold. That policy is now the user's explicit, standing decision
+(2026-09-26); revisit the ambiguity above before any public release or
+commercial pivot.
 
 ---
 
