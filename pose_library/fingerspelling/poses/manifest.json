@@ -224,6 +224,25 @@
     "source_url": "https://huggingface.co/datasets/sid220/asl-now-fingerspelling",
     "total_frames_decoded": 12
   },
+  "j": {
+    "dropped_frame_indices": [],
+    "filename": "j.json",
+    "frames_kept": 30,
+    "kind": "motion",
+    "letter": "j",
+    "license": "Self-recorded by the project author; project-owned, MIT (see LICENSE)",
+    "low_confidence": false,
+    "quality_notes": null,
+    "recording": {
+      "filename": "raw/j.mp4",
+      "frames_with_hand": 76,
+      "segment_start_frame": 22,
+      "total_frames_decoded": 76
+    },
+    "signing_hand": "right",
+    "source": "fingerspelling:self-recorded",
+    "total_frames_decoded": 30
+  },
   "k": {
     "dataset_sample": {
       "dataset": "sid220/asl-now-fingerspelling",
@@ -598,5 +617,24 @@
     "source": "hf:sid220/asl-now-fingerspelling",
     "source_url": "https://huggingface.co/datasets/sid220/asl-now-fingerspelling",
     "total_frames_decoded": 12
+  },
+  "z": {
+    "dropped_frame_indices": [],
+    "filename": "z.json",
+    "frames_kept": 52,
+    "kind": "motion",
+    "letter": "z",
+    "license": "Self-recorded by the project author; project-owned, MIT (see LICENSE)",
+    "low_confidence": false,
+    "quality_notes": null,
+    "recording": {
+      "filename": "raw/z.mp4",
+      "frames_with_hand": 76,
+      "segment_start_frame": 10,
+      "total_frames_decoded": 76
+    },
+    "signing_hand": "right",
+    "source": "fingerspelling:self-recorded",
+    "total_frames_decoded": 52
   }
 }
