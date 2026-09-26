@@ -2,6 +2,7 @@ import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 
 import { App } from "./App.jsx";
+import captionStyles from "./components/CaptionBand.module.css";
 
 /**
  * Integration test for the App shell, per `frontend/PLAN.md` Section 6's
@@ -203,7 +204,10 @@ describe("App integration: real pose-library words", () => {
       expect(screen.getAllByText(/NO SIGN FOUND FOR "XYZZYNOTASIGN"/)).toHaveLength(2);
     });
 
-    expect(screen.getAllByText(/FINGERSPELLING NOT YET AVAILABLE/)).toHaveLength(2);
+    // This suite's fetch mock serves no /fingerspelling/* (the real state
+    // until the alphabet is recorded), so the miss says why it couldn't be
+    // spelled either, rather than aborting.
+    expect(screen.getAllByText(/FINGERSPELLING ALPHABET NOT RECORDED YET/)).toHaveLength(2);
 
     // No skeleton canvas for a miss -- the Stage message replaces it
     // entirely (PLAN.md Section 5: "replacing the skeleton stage with that
@@ -268,5 +272,166 @@ describe("App integration: real pose-library words", () => {
       screen.queryByRole("img", { name: "ASL sign skeleton animation" })
     ).not.toBeInTheDocument();
     expect(screen.getByText("NO SIGN FOUND")).toBeInTheDocument();
+  });
+});
+
+/**
+ * Fingerspelling, end to end -- on SYNTHETIC placeholder letters.
+ *
+ * The real 26-letter alphabet is not recorded yet
+ * (pose_library/FINGERSPELLING_PLAN.md). These letters are hand-constructed
+ * stand-ins: manifest entries shaped exactly like
+ * `pose_library.manifest.build_letter_entry` output (a 12-frame gap-free
+ * static hold), with the same small arithmetic-friendly frames the word
+ * fixtures above use. They prove the plumbing -- not_found -> letters ->
+ * the same usePoseSequences -> stitchTimelines -> SkeletonCanvas path --
+ * not any real handshape.
+ */
+const SYNTHETIC_HOLD_FRAMES = 12;
+
+function syntheticLetterEntry(letter, { lowConfidence = false } = {}) {
+  return {
+    filename: `${letter}.json`,
+    letter,
+    kind: "static",
+    signing_hand: "right",
+    source: "fingerspelling:self-recorded",
+    license: "Self-recorded by the project author; project-owned, MIT (see LICENSE)",
+    recording: {
+      filename: `raw/${letter}.mp4`,
+      total_frames_decoded: 60,
+      frames_with_hand: 60,
+      segment_start_frame: 20,
+    },
+    total_frames_decoded: SYNTHETIC_HOLD_FRAMES,
+    frames_kept: SYNTHETIC_HOLD_FRAMES,
+    dropped_frame_indices: [],
+    low_confidence: lowConfidence,
+    quality_notes: lowConfidence ? "synthetic low-confidence note" : null,
+  };
+}
+
+/** Replaces the suite's fetch mock with one that also serves a synthetic
+ * letter library containing exactly `letters`. */
+function stubFetchWithLetters(letters, { lowConfidence = [] } = {}) {
+  const letterManifest = Object.fromEntries(
+    letters.map((l) => [l, syntheticLetterEntry(l, { lowConfidence: lowConfidence.includes(l) })])
+  );
+  const fetchMock = vi.fn(async (url) => {
+    const path = String(url);
+    if (path === "/poses/manifest.json") return jsonResponse(MANIFEST);
+    if (path === "/fingerspelling/manifest.json") return jsonResponse(letterManifest);
+    const match = path.match(/^\/(poses|fingerspelling)\/([^/]+)\.json$/);
+    if (match?.[1] === "poses" && SEQUENCES[match[2]]) {
+      return jsonResponse(SEQUENCES[match[2]]);
+    }
+    if (match?.[1] === "fingerspelling" && letterManifest[match[2]]) {
+      const letter = match[2];
+      return jsonResponse(
+        makeSequence(letter.toUpperCase(), "fingerspelling:self-recorded", SYNTHETIC_HOLD_FRAMES)
+      );
+    }
+    return jsonResponse({ error: "not_found" }, 404);
+  });
+  vi.stubGlobal("fetch", fetchMock);
+  return fetchMock;
+}
+
+/** The letter currently highlighted inside the playing (heading) word. */
+function activeLetter() {
+  const heading = screen.queryByRole("heading");
+  return heading?.querySelector(`.${captionStyles.letterActive}`)?.textContent ?? null;
+}
+
+describe("App integration: fingerspelling (SYNTHETIC letter data)", () => {
+  it("spells an out-of-library word end to end, advancing letter by letter", async () => {
+    const fetchMock = stubFetchWithLetters(["a", "b", "c"]);
+    render(<App />);
+
+    await searchFor("cab");
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "FINGERSPELLED: CAB" })).toBeInTheDocument();
+    });
+    expect(screen.getByRole("img", { name: "ASL sign skeleton animation" })).toBeInTheDocument();
+    expect(screen.getByText("READY — 1/1 WORDS (1 FINGERSPELLED)")).toBeInTheDocument();
+    expect(screen.getByText("SOURCE: fingerspelling:self-recorded")).toBeInTheDocument();
+    expect(screen.queryByText(/SKIPPED:/)).not.toBeInTheDocument();
+
+    // Real playback through stitchTimelines + SkeletonCanvas's rAF loop: the
+    // highlighted letter advances C -> A -> B in spelling order.
+    expect(activeLetter()).toBe("C");
+    await waitFor(() => expect(activeLetter()).toBe("A"), { timeout: 4000 });
+    await waitFor(() => expect(activeLetter()).toBe("B"), { timeout: 4000 });
+
+    // Each letter library file is fetched once, alongside the one word miss.
+    const urls = fetchMock.mock.calls.map(([url]) => String(url));
+    expect(urls.filter((u) => u.startsWith("/fingerspelling/")).sort()).toEqual([
+      "/fingerspelling/a.json",
+      "/fingerspelling/b.json",
+      "/fingerspelling/c.json",
+      "/fingerspelling/manifest.json",
+    ]);
+  });
+
+  it("plays a sentence mixing library signs and a spelled word, in order", async () => {
+    stubFetchWithLetters(["a", "b", "c"]);
+    render(<App />);
+
+    await searchFor("about cab phone");
+
+    await waitFor(() => {
+      expect(screen.getByText(/READY — 3\/3 WORDS \(1 FINGERSPELLED\)/)).toBeInTheDocument();
+    });
+    expect(screen.getByRole("img", { name: "ASL sign skeleton animation" })).toBeInTheDocument();
+    // "about" plays first; "cab" is a spelled chip, not a skipped one.
+    expect(screen.getByRole("heading", { name: "ABOUT" })).toBeInTheDocument();
+    expect(screen.getByText("FINGERSPELLED: CAB")).toBeInTheDocument();
+    expect(screen.queryByText(/SKIPPED:/)).not.toBeInTheDocument();
+    // The real low-confidence word still surfaces its real notes.
+    expect(screen.getByText(/29 mid-clip tracking gaps/)).toBeInTheDocument();
+  });
+
+  it("skips a word whose letters aren't all recorded, naming the missing ones", async () => {
+    stubFetchWithLetters(["a", "c"]);
+    render(<App />);
+
+    await searchFor("about cab");
+
+    await waitFor(() => {
+      expect(
+        screen.getByText('SKIPPED: "CAB" (NOT FOUND — NO FINGERSPELLING FOR "B")')
+      ).toBeInTheDocument();
+    });
+    // The rest of the sentence still plays.
+    expect(screen.getByRole("img", { name: "ASL sign skeleton animation" })).toBeInTheDocument();
+    expect(screen.getByText(/READY — 1\/2 WORDS \(1 SKIPPED\)/)).toBeInTheDocument();
+  });
+
+  it("flags a low-confidence letter in the same banner as words", async () => {
+    stubFetchWithLetters(["a", "b", "c"], { lowConfidence: ["b"] });
+    render(<App />);
+
+    await searchFor("cab");
+
+    await waitFor(() => {
+      expect(screen.getByText(/LOW-CONFIDENCE: LETTER "B"/)).toBeInTheDocument();
+    });
+    expect(screen.getByText(/synthetic low-confidence note/)).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "ASL sign skeleton animation" })).toBeInTheDocument();
+  });
+
+  it("explains an unspellable miss without fetching any letters", async () => {
+    const fetchMock = stubFetchWithLetters(["a", "b", "c"]);
+    render(<App />);
+
+    await searchFor("abc1");
+
+    await waitFor(() => {
+      expect(screen.getAllByText(/ONLY A–Z CAN BE FINGERSPELLED/)).toHaveLength(2);
+    });
+    expect(fetchMock.mock.calls.some(([url]) => String(url).startsWith("/fingerspelling/"))).toBe(
+      false
+    );
   });
 });

@@ -17,12 +17,29 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // Serves:
 //   GET /poses/manifest.json  -> pose_library/data/poses/manifest.json
 //   GET /poses/<word>.json    -> pose_library/data/poses/<word>.json
+//   GET /fingerspelling/manifest.json -> pose_library/fingerspelling/poses/manifest.json
+//   GET /fingerspelling/<letter>.json -> pose_library/fingerspelling/poses/<letter>.json
+//
+// The fingerspelling directory can be pointed elsewhere with the
+// FINGERSPELLING_POSES_DIR env var (resolved relative to frontend/) -- used
+// only to run a manual browser check against the SYNTHETIC placeholder
+// letters in tests/fixtures/fingerspelling_synthetic/ before real
+// recordings exist (pose_library/FINGERSPELLING_PLAN.md Section 7).
 //
 // "word not found" and "library not built yet" (pose_library/data/ is
 // gitignored and only exists once build_library.py has run) must look
 // identical to the frontend -- both are a clean 404, never an uncaught
 // exception or a raw 500 stack trace.
 const POSES_DIR = path.resolve(__dirname, "../pose_library/data/poses");
+const FINGERSPELLING_POSES_DIR = path.resolve(
+  __dirname,
+  process.env.FINGERSPELLING_POSES_DIR ?? "../pose_library/fingerspelling/poses"
+);
+
+const MOUNTS = {
+  poses: POSES_DIR,
+  fingerspelling: FINGERSPELLING_POSES_DIR,
+};
 
 // Only ever a bare lowercase-ish word or "manifest", no path separators or
 // traversal segments -- reject anything else before it ever touches fs.
@@ -38,13 +55,14 @@ function posesServingMiddleware() {
           return;
         }
         const url = new URL(req.url, "http://localhost");
-        const match = url.pathname.match(/^\/poses\/([^/]+)$/);
+        const match = url.pathname.match(/^\/(poses|fingerspelling)\/([^/]+)$/);
         if (!match) {
           next();
           return;
         }
 
-        const filename = match[1];
+        const mountDir = MOUNTS[match[1]];
+        const filename = match[2];
         if (!SAFE_FILENAME.test(filename)) {
           res.statusCode = 404;
           res.setHeader("Content-Type", "application/json");
@@ -52,10 +70,11 @@ function posesServingMiddleware() {
           return;
         }
 
-        const filePath = path.join(POSES_DIR, filename);
+        const filePath = path.join(mountDir, filename);
         // Belt-and-suspenders traversal guard: resolved path must stay
-        // inside POSES_DIR even though SAFE_FILENAME already forbids "/".
-        if (path.dirname(filePath) !== POSES_DIR) {
+        // inside the mount's directory even though SAFE_FILENAME already
+        // forbids "/".
+        if (path.dirname(filePath) !== mountDir) {
           res.statusCode = 404;
           res.setHeader("Content-Type", "application/json");
           res.end(JSON.stringify({ error: "not_found" }));

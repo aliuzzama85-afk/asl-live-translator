@@ -6,6 +6,12 @@ import { CaptionBand } from "./components/CaptionBand.jsx";
 import { usePoseSequences } from "./hooks/usePoseSequences.js";
 import { usePrefersReducedMotion } from "./hooks/usePrefersReducedMotion.js";
 import { stitchTimelines } from "./lib/stitchTimelines.js";
+import {
+  formatSkippedBanner,
+  lettersNeeded,
+  planPlayback,
+  skipReasonText,
+} from "./lib/fingerspelling.js";
 import styles from "./App.module.css";
 
 /** Composes a "no sign found" message for one or more missing words, using
@@ -27,6 +33,12 @@ function formatMissingWordsMessage(words) {
  * before handing the rest to `stitchTimelines` (Section 3/4), and tracks
  * which word is currently playing via `SkeletonCanvas`'s `onFrameChange`
  * callback and the returned `wordBoundaries` table.
+ *
+ * Fingerspelling (`pose_library/FINGERSPELLING_PLAN.md` Section 3): a
+ * `not_found` word is expanded into letters, looked up with the *same*
+ * `usePoseSequences` hook against the letter library, and each letter
+ * becomes one more unit in the same `stitchTimelines` call -- a
+ * fingerspelled word plays through exactly the path a sentence of words does.
  */
 export function App() {
   const [submittedWords, setSubmittedWords] = useState([]);
@@ -39,37 +51,43 @@ export function App() {
   const batch = usePoseSequences(submittedWords);
   const results = batch.results;
 
-  // Per PLAN.md Section 4: `not_found` words are filtered out before
-  // stitching (they never need special transition handling -- the real
-  // words on either side simply become adjacent), while `originalIndices`
-  // remembers each surviving word's position in the full submitted
-  // sequence, duplicate-word-safe (no string-identity matching), so the
-  // caption row can highlight the right chip even when words repeat.
-  const resolvable = useMemo(() => {
-    const list = [];
-    const originalIndices = [];
-    results.forEach((r, i) => {
-      if (r.status === "ok" || r.status === "low_confidence") {
-        list.push(r);
-        originalIndices.push(i);
-      }
-    });
-    return { list, originalIndices };
-  }, [results]);
+  // Letters for every `not_found` word, deduplicated, fetched with the same
+  // hook against the letter library. Empty (hook idle) until the word batch
+  // resolves, since only then is it known which words are missing.
+  const neededLettersKey = lettersNeeded(results).join("");
+  const neededLetters = useMemo(
+    () => (neededLettersKey ? neededLettersKey.split("") : []),
+    [neededLettersKey]
+  );
+  const letterBatch = usePoseSequences(neededLetters, { basePath: "/fingerspelling" });
 
-  // A per-word fetch `error` (as opposed to `not_found`) is a technical
-  // failure, not a vocabulary gap -- it aborts the whole sequence rather
-  // than being silently skipped, per PLAN.md Section 4's stated asymmetry.
+  // Per PLAN.md Section 4, unresolvable words never reach stitching (the
+  // playable words on either side simply become adjacent). Each unit keeps
+  // its position in the full submitted sequence (`wordIndex`, plus
+  // `letterIndex` for a spelled word), duplicate-word-safe, so the caption
+  // row can highlight the right chip -- and letter -- even when words repeat.
+  const plan = useMemo(
+    () => planPlayback(results, neededLetters, letterBatch),
+    [results, neededLetters, letterBatch]
+  );
+
+  // A per-word or per-letter fetch `error` (as opposed to `not_found`) is
+  // a technical failure, not a vocabulary gap -- it aborts the whole
+  // sequence rather than being silently skipped, per PLAN.md Section 4's
+  // stated asymmetry.
   const erroredResult = results.find((r) => r.status === "error");
-  const sequenceAborted = batch.status === "error" || Boolean(erroredResult);
-  const abortMessage = batch.status === "error" ? batch.message : erroredResult?.message;
+  const sequenceAborted =
+    batch.status === "error" || Boolean(erroredResult) || Boolean(plan.abortMessage);
+  const abortMessage =
+    batch.status === "error" ? batch.message : (erroredResult?.message ?? plan.abortMessage);
+  const isLoading = batch.status === "loading" || plan.pending;
 
   const stitched = useMemo(() => {
-    if (sequenceAborted || resolvable.list.length === 0) {
+    if (sequenceAborted || plan.pending || plan.units.length === 0) {
       return null;
     }
-    return stitchTimelines(resolvable.list);
-  }, [resolvable.list, sequenceAborted]);
+    return stitchTimelines(plan.units);
+  }, [plan, sequenceAborted]);
 
   const timeline = stitched?.timeline ?? null;
   const wordBoundaries = stitched?.wordBoundaries ?? [];
@@ -97,41 +115,56 @@ export function App() {
       ) ?? null,
     [wordBoundaries, currentFrameIndex]
   );
-  const currentOriginalIndex =
-    currentBoundary !== null ? resolvable.originalIndices[currentBoundary.wordIndex] : null;
-  const currentSource =
-    currentBoundary !== null ? resolvable.list[currentBoundary.wordIndex].sequence.source : null;
+  const currentUnit = currentBoundary !== null ? plan.units[currentBoundary.wordIndex] : null;
+  const currentSource = currentUnit ? currentUnit.sequence.source : null;
 
-  const skippedWordsAll = results.filter((r) => r.status === "not_found").map((r) => r.word);
-  const lowConfidenceEntries = results
-    .filter((r) => r.status === "low_confidence")
-    .map((r) => ({ word: r.word, notes: r.manifestEntry.quality_notes }));
+  const skippedWords = plan.words.filter((w) => w.kind === "skipped");
+  const fingerspelledCount = plan.words.filter((w) => w.kind === "fingerspelled").length;
+  const lowConfidenceEntries = plan.lowConfidence;
 
-  // Every submitted word was skipped/not found (and nothing errored) --
+  // Nothing playable (every word skipped/not found, and nothing errored) --
   // falls back to the same full-stage "no sign found" treatment the
-  // original single-word app used, generalized to list every missing word.
-  const allMissing = submittedWords.length > 0 && !sequenceAborted && resolvable.list.length === 0;
-  const missingMessage = allMissing ? formatMissingWordsMessage(skippedWordsAll) : null;
+  // original single-word app used, generalized to list every missing word,
+  // plus why each couldn't be fingerspelled either.
+  const allMissing =
+    submittedWords.length > 0 &&
+    batch.status === "ready" &&
+    !isLoading &&
+    !sequenceAborted &&
+    plan.units.length === 0;
+  const missingMessage = allMissing
+    ? formatMissingWordsMessage(skippedWords.map((w) => w.text))
+    : null;
+  const missingDetail = allMissing
+    ? [...new Set(skippedWords.map((w) => skipReasonText(w)))].join(" · ")
+    : null;
 
   // The small persistent "SKIPPED" banner only applies to the *partial*
   // case (some words play, others didn't resolve) -- the all-missing case
   // uses `missingMessage`'s full-takeover treatment instead, so the two
   // never render at once.
-  const skippedWordsForBanner = allMissing ? [] : skippedWordsAll;
+  const skippedBanner =
+    !allMissing && skippedWords.length > 0 ? formatSkippedBanner(skippedWords) : null;
 
   const captionWords = useMemo(
     () =>
-      results.map((r, origIdx) => {
-        const isActive = currentOriginalIndex === origIdx;
-        if (r.status === "ok" || r.status === "low_confidence") {
-          return { text: r.sequence.gloss, kind: r.status, isActive };
+      plan.words.map((w, wordIndex) => {
+        const isActive = currentUnit !== null && currentUnit.wordIndex === wordIndex;
+        if (w.kind === "fingerspelled") {
+          return {
+            text: w.text,
+            kind: "fingerspelled",
+            letters: w.letters,
+            isActive,
+            activeLetterIndex: isActive ? currentUnit.letterIndex : null,
+          };
         }
-        if (r.status === "not_found") {
-          return { text: r.word.toUpperCase(), kind: "skipped", isActive: false };
-        }
-        return { text: r.word ? r.word.toUpperCase() : "?", kind: "skipped", isActive: false };
+        if (w.kind === "sign") return { text: w.text, kind: "ok", isActive };
+        if (w.kind === "low_confidence") return { text: w.text, kind: "low_confidence", isActive };
+        if (w.kind === "pending") return { text: w.text, kind: "pending", isActive: false };
+        return { text: w.text, kind: "skipped", isActive: false };
       }),
-    [results, currentOriginalIndex]
+    [plan.words, currentUnit]
   );
 
   const handleSearch = useCallback((words, truncated) => {
@@ -145,13 +178,18 @@ export function App() {
   const handleFrameChange = useCallback((frameIndex) => setCurrentFrameIndex(frameIndex), []);
 
   let stripState = "idle";
-  if (batch.status === "loading") stripState = "loading";
+  if (isLoading) stripState = "loading";
   else if (sequenceAborted) stripState = "error";
   else if (allMissing) stripState = "not_found";
   else if (lowConfidenceEntries.length > 0) stripState = "low_confidence";
   else if (isLoaded) stripState = "ready";
 
-  const latencyMs = batch.status === "ready" ? batch.fetchMs : null;
+  // Word and letter lookups run one after the other (letters need the word
+  // results first), so a spelled sentence's fetch time is both batches.
+  const latencyMs =
+    batch.status === "ready" && !isLoading
+      ? batch.fetchMs + (letterBatch.status === "ready" ? letterBatch.fetchMs : 0)
+      : null;
 
   return (
     <div className={styles.app}>
@@ -160,13 +198,14 @@ export function App() {
         latencyMs={latencyMs}
         reducedMotion={reducedMotion}
         wordCount={submittedWords.length}
-        skippedCount={skippedWordsAll.length}
+        skippedCount={skippedWords.length}
+        fingerspelledCount={fingerspelledCount}
       />
 
       <main className={styles.stage}>
         {isLoaded ? (
           <SkeletonCanvas
-            landmarkNames={resolvable.list[0].sequence.landmark_names}
+            landmarkNames={plan.units[0].sequence.landmark_names}
             timeline={timeline}
             isPlaying={isPlaying}
             loop={loop}
@@ -176,10 +215,11 @@ export function App() {
           />
         ) : (
           <StageMessage
-            status={batch.status}
+            isLoading={isLoading}
             sequenceAborted={sequenceAborted}
             abortMessage={abortMessage}
             missingMessage={missingMessage}
+            missingDetail={missingDetail}
           />
         )}
       </main>
@@ -194,8 +234,9 @@ export function App() {
         onToggleLoop={handleToggleLoop}
         controlsDisabled={!isLoaded}
         lowConfidenceEntries={lowConfidenceEntries}
-        skippedWords={skippedWordsForBanner}
+        skippedBanner={skippedBanner}
         missingMessage={missingMessage}
+        missingDetail={missingDetail}
         wasTruncated={wasTruncated}
       />
     </div>
@@ -208,8 +249,8 @@ export function App() {
  * whenever words were submitted, nothing resolved, and nothing errored
  * (see `allMissing`'s derivation in `App`), so no separate "submitted but
  * unaccounted for" fallback branch is needed here. */
-function StageMessage({ status, sequenceAborted, abortMessage, missingMessage }) {
-  if (status === "loading") {
+function StageMessage({ isLoading, sequenceAborted, abortMessage, missingMessage, missingDetail }) {
+  if (isLoading) {
     return (
       <p className={styles.stageMessage} role="status" aria-live="polite">
         LOADING…
@@ -236,7 +277,7 @@ function StageMessage({ status, sequenceAborted, abortMessage, missingMessage })
       >
         {missingMessage}
         <br />
-        FINGERSPELLING NOT YET AVAILABLE
+        {missingDetail}
       </p>
     );
   }

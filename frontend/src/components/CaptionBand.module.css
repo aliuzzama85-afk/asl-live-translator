@@ -170,3 +170,37 @@
 .searchSubmit:hover {
   opacity: 0.85;
 }
+
+/* A fingerspelled word (FINGERSPELLING_PLAN.md Section 5): hyphenated
+ * letters plus a dotted underline, so it reads as "spelled" without relying
+ * on color alone. */
+.wordChipFingerspelled {
+  color: var(--color-accent-amber);
+  text-decoration: underline dotted;
+  text-underline-offset: var(--space-1);
+}
+
+.letterSeparator {
+  color: var(--color-text-muted);
+}
+
+.letterActive {
+  color: var(--color-text-primary);
+}
+
+.letterInactive {
+  color: var(--color-text-muted);
+}
+
+/* Visually hidden but still read by screen readers. */
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}

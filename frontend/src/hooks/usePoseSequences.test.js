@@ -143,4 +143,44 @@ describe("usePoseSequences", () => {
     });
     expect(result.current.results).toEqual([]);
   });
+
+  it("looks words up under a different basePath (the fingerspelling alphabet)", async () => {
+    // SYNTHETIC placeholder letter data -- not a real recorded handshape.
+    fetchMock.mockImplementation(async (url) => {
+      const path = String(url);
+      if (path === "/fingerspelling/manifest.json") {
+        return jsonResponse({ a: { low_confidence: false, quality_notes: null } });
+      }
+      if (path === "/fingerspelling/a.json") {
+        return jsonResponse({ ...SEQUENCES.about, gloss: "A", source: "synthetic" });
+      }
+      return jsonResponse({ error: "not_found" }, 404);
+    });
+
+    const { result } = renderHook(() => usePoseSequences(["a"], { basePath: "/fingerspelling" }));
+    await waitFor(() => {
+      expect(result.current.status).toBe("ready");
+    });
+
+    expect(fetchMock.mock.calls.map(([url]) => String(url))).toEqual([
+      "/fingerspelling/manifest.json",
+      "/fingerspelling/a.json",
+    ]);
+    expect(result.current.results[0]).toMatchObject({ status: "ok", word: "a" });
+  });
+
+  it("flags a missing manifest separately from other manifest failures", async () => {
+    const { result } = renderHook(() => usePoseSequences(["a"], { basePath: "/fingerspelling" }));
+    await waitFor(() => {
+      expect(result.current.status).toBe("error");
+    });
+    expect(result.current.manifestMissing).toBe(true);
+
+    fetchMock.mockImplementation(async () => jsonResponse({}, 500));
+    const { result: failed } = renderHook(() => usePoseSequences(["about"]));
+    await waitFor(() => {
+      expect(failed.current.status).toBe("error");
+    });
+    expect(failed.current.manifestMissing).toBe(false);
+  });
 });

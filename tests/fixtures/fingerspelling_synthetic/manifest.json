@@ -1,0 +1,116 @@
+{
+  "a": {
+    "dropped_frame_indices": [],
+    "filename": "a.json",
+    "frames_kept": 12,
+    "kind": "static",
+    "letter": "a",
+    "license": "SYNTHETIC PLACEHOLDER - not a real recording, not a real ASL letter",
+    "low_confidence": false,
+    "quality_notes": null,
+    "recording": {
+      "filename": "raw/a.mp4",
+      "frames_with_hand": 60,
+      "segment_start_frame": 20,
+      "total_frames_decoded": 60
+    },
+    "signing_hand": "right",
+    "source": "synthetic:placeholder",
+    "total_frames_decoded": 12
+  },
+  "b": {
+    "dropped_frame_indices": [],
+    "filename": "b.json",
+    "frames_kept": 12,
+    "kind": "static",
+    "letter": "b",
+    "license": "SYNTHETIC PLACEHOLDER - not a real recording, not a real ASL letter",
+    "low_confidence": false,
+    "quality_notes": null,
+    "recording": {
+      "filename": "raw/b.mp4",
+      "frames_with_hand": 60,
+      "segment_start_frame": 20,
+      "total_frames_decoded": 60
+    },
+    "signing_hand": "right",
+    "source": "synthetic:placeholder",
+    "total_frames_decoded": 12
+  },
+  "c": {
+    "dropped_frame_indices": [],
+    "filename": "c.json",
+    "frames_kept": 12,
+    "kind": "static",
+    "letter": "c",
+    "license": "SYNTHETIC PLACEHOLDER - not a real recording, not a real ASL letter",
+    "low_confidence": false,
+    "quality_notes": null,
+    "recording": {
+      "filename": "raw/c.mp4",
+      "frames_with_hand": 60,
+      "segment_start_frame": 20,
+      "total_frames_decoded": 60
+    },
+    "signing_hand": "right",
+    "source": "synthetic:placeholder",
+    "total_frames_decoded": 12
+  },
+  "d": {
+    "dropped_frame_indices": [],
+    "filename": "d.json",
+    "frames_kept": 12,
+    "kind": "static",
+    "letter": "d",
+    "license": "SYNTHETIC PLACEHOLDER - not a real recording, not a real ASL letter",
+    "low_confidence": false,
+    "quality_notes": null,
+    "recording": {
+      "filename": "raw/d.mp4",
+      "frames_with_hand": 60,
+      "segment_start_frame": 20,
+      "total_frames_decoded": 60
+    },
+    "signing_hand": "right",
+    "source": "synthetic:placeholder",
+    "total_frames_decoded": 12
+  },
+  "e": {
+    "dropped_frame_indices": [],
+    "filename": "e.json",
+    "frames_kept": 12,
+    "kind": "static",
+    "letter": "e",
+    "license": "SYNTHETIC PLACEHOLDER - not a real recording, not a real ASL letter",
+    "low_confidence": false,
+    "quality_notes": null,
+    "recording": {
+      "filename": "raw/e.mp4",
+      "frames_with_hand": 60,
+      "segment_start_frame": 20,
+      "total_frames_decoded": 60
+    },
+    "signing_hand": "right",
+    "source": "synthetic:placeholder",
+    "total_frames_decoded": 12
+  },
+  "j": {
+    "dropped_frame_indices": [],
+    "filename": "j.json",
+    "frames_kept": 20,
+    "kind": "motion",
+    "letter": "j",
+    "license": "SYNTHETIC PLACEHOLDER - not a real recording, not a real ASL letter",
+    "low_confidence": false,
+    "quality_notes": null,
+    "recording": {
+      "filename": "raw/j.mp4",
+      "frames_with_hand": 60,
+      "segment_start_frame": 20,
+      "total_frames_decoded": 60
+    },
+    "signing_hand": "right",
+    "source": "synthetic:placeholder",
+    "total_frames_decoded": 20
+  }
+}

@@ -31,10 +31,20 @@ const STATE_CONFIG = {
  *   than one word or at least one skip, so a plain single clean or
  *   low-confidence word still reads as the original bare "READY"/
  *   "LOW-CONFIDENCE SIGN" label, unchanged.
- * @param {number} [props.skippedCount] - Words skipped (not found) in the
- *   current sequence.
+ * @param {number} [props.skippedCount] - Words skipped (neither signed nor
+ *   fingerspelled) in the current sequence.
+ * @param {number} [props.fingerspelledCount] - Words fingerspelled instead
+ *   of signed. They count as playable, not skipped
+ *   (`pose_library/FINGERSPELLING_PLAN.md` Section 5).
  */
-export function StatusStrip({ state, latencyMs, reducedMotion, wordCount = 0, skippedCount = 0 }) {
+export function StatusStrip({
+  state,
+  latencyMs,
+  reducedMotion,
+  wordCount = 0,
+  skippedCount = 0,
+  fingerspelledCount = 0,
+}) {
   const config = STATE_CONFIG[state] ?? STATE_CONFIG.idle;
   const pulsing = state === "loading" && !reducedMotion;
 
@@ -47,10 +57,14 @@ export function StatusStrip({ state, latencyMs, reducedMotion, wordCount = 0, sk
   // genuinely single, unremarkable word (no skips) keeps the original bare
   // per-state label.
   let label = config.label;
-  const isSingleUnremarkableWord = wordCount <= 1 && skippedCount === 0;
+  const isSingleUnremarkableWord = wordCount <= 1 && skippedCount === 0 && fingerspelledCount === 0;
   if ((state === "ready" || state === "low_confidence") && !isSingleUnremarkableWord) {
     const playable = wordCount - skippedCount;
-    label = `READY — ${playable}/${wordCount} WORDS${skippedCount > 0 ? ` (${skippedCount} SKIPPED)` : ""}`;
+    const notes = [
+      fingerspelledCount > 0 ? `${fingerspelledCount} FINGERSPELLED` : null,
+      skippedCount > 0 ? `${skippedCount} SKIPPED` : null,
+    ].filter(Boolean);
+    label = `READY — ${playable}/${wordCount} WORDS${notes.length > 0 ? ` (${notes.join(", ")})` : ""}`;
   }
 
   return (

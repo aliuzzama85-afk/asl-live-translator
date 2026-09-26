@@ -30,10 +30,46 @@ function parseWords(raw) {
 /**
  * @typedef {Object} CaptionWord
  * @property {string} text - Display text (uppercase gloss for a resolved
- *   word, or the uppercased typed word for a skipped one).
- * @property {"ok"|"low_confidence"|"skipped"} kind
+ *   word, or the uppercased typed word for a skipped/spelled one).
+ * @property {"ok"|"low_confidence"|"fingerspelled"|"pending"|"skipped"} kind
  * @property {boolean} isActive - True for the single word currently playing.
+ * @property {string[]} [letters] - Uppercase letters, for `fingerspelled`.
+ * @property {number|null} [activeLetterIndex] - The letter being signed,
+ *   for the active `fingerspelled` word.
  */
+
+/**
+ * A fingerspelled word in gloss notation (`B-A-N-A-N-A`), per
+ * `pose_library/FINGERSPELLING_PLAN.md` Section 5. The hyphenated letters
+ * are `aria-hidden` and a visually-hidden "FINGERSPELLED: BANANA" carries
+ * the accessible name, so screen readers don't read "B dash A dash N...".
+ * While playing, the letter currently being signed is highlighted.
+ */
+function SpelledLetters({ word }) {
+  return (
+    <>
+      <span aria-hidden="true">
+        {word.letters.map((letter, i) => (
+          <span key={i}>
+            {i > 0 ? <span className={styles.letterSeparator}>-</span> : null}
+            <span
+              className={
+                word.isActive
+                  ? i === word.activeLetterIndex
+                    ? styles.letterActive
+                    : styles.letterInactive
+                  : undefined
+              }
+            >
+              {letter}
+            </span>
+          </span>
+        ))}
+      </span>
+      <span className={styles.srOnly}>FINGERSPELLED: {word.text}</span>
+    </>
+  );
+}
 
 /**
  * The bottom band: multi-word search input, playback controls, the current
@@ -60,18 +96,23 @@ function parseWords(raw) {
  * @param {() => void} props.onToggleLoop
  * @param {boolean} props.controlsDisabled - True when there's nothing
  *   playable loaded (nothing resolved / error / loading).
- * @param {Array<{word: string, notes: string}>} props.lowConfidenceEntries -
- *   Every currently-low-confidence word in the sequence, each with its own
- *   real `quality_notes` text.
- * @param {string[]} props.skippedWords - Words skipped because they weren't
- *   found, shown in a small persistent banner *alongside* still-playing
- *   content (the partial-skip case, PLAN.md Section 4/5). Empty when
- *   nothing was skipped, or when `missingMessage` is set instead (the
- *   all-missing case uses that full-takeover message, not this banner).
+ * @param {Array<{label: string, notes: string|null}>} props.lowConfidenceEntries -
+ *   Every currently-low-confidence word (`"PHONE"`) or fingerspelled
+ *   letter (`LETTER "Q"`) in the sequence, each with its own real
+ *   `quality_notes` text.
+ * @param {string|null} props.skippedBanner - The "SKIPPED: ..." line for
+ *   words that couldn't be signed or fingerspelled, shown in a small
+ *   persistent banner *alongside* still-playing content (the partial-skip
+ *   case, PLAN.md Section 4/5). `null` when nothing was skipped, or when
+ *   `missingMessage` is set instead (the all-missing case uses that
+ *   full-takeover message, not this banner).
  * @param {string|null} props.missingMessage - Set only when *every* word in
  *   the sequence was skipped/not found -- the same full "NO SIGN FOUND
  *   FOR..." message `App.jsx`'s Stage message shows, mirrored here per the
  *   single-word precedent of surfacing it in both places.
+ * @param {string|null} props.missingDetail - Why those words couldn't be
+ *   fingerspelled either (e.g. "FINGERSPELLING ALPHABET NOT RECORDED YET"),
+ *   shown under `missingMessage`.
  * @param {boolean} props.wasTruncated - True when the last submission had
  *   more than `MAX_WORDS` words and was capped.
  */
@@ -85,8 +126,9 @@ export function CaptionBand({
   onToggleLoop,
   controlsDisabled,
   lowConfidenceEntries,
-  skippedWords,
+  skippedBanner,
   missingMessage,
+  missingDetail,
   wasTruncated,
 }) {
   const [inputValue, setInputValue] = useState("");
@@ -108,15 +150,14 @@ export function CaptionBand({
 
       {lowConfidenceEntries.length > 0 ? (
         <div className={styles.lowConfidenceBanner} role="status" aria-live="polite">
-          LOW-CONFIDENCE: {lowConfidenceEntries.map((e) => `"${e.word.toUpperCase()}"`).join(", ")}{" "}
-          — {lowConfidenceEntries.map((e) => e.notes).join(" | ")}
+          LOW-CONFIDENCE: {lowConfidenceEntries.map((e) => e.label).join(", ")} —{" "}
+          {lowConfidenceEntries.map((e) => e.notes).join(" | ")}
         </div>
       ) : null}
 
-      {skippedWords.length > 0 ? (
+      {skippedBanner ? (
         <div className={styles.oovBanner} role="status" aria-live="polite">
-          SKIPPED: {skippedWords.map((w) => `"${w.toUpperCase()}"`).join(", ")} (NOT FOUND) —
-          FINGERSPELLING NOT YET AVAILABLE
+          {skippedBanner}
         </div>
       ) : null}
 
@@ -124,7 +165,7 @@ export function CaptionBand({
         <div className={styles.oovBanner} role="status" aria-live="polite">
           {missingMessage}
           <br />
-          FINGERSPELLING NOT YET AVAILABLE
+          {missingDetail}
         </div>
       ) : null}
 
@@ -132,22 +173,25 @@ export function CaptionBand({
         <div className={styles.glossArea}>
           {captionWords.length > 0 ? (
             <div className={styles.wordRow}>
-              {captionWords.map((w, i) =>
-                w.isActive ? (
+              {captionWords.map((w, i) => {
+                const content = w.kind === "fingerspelled" ? <SpelledLetters word={w} /> : w.text;
+                return w.isActive ? (
                   <h1 key={i} className={styles.glossWord}>
-                    {w.text}
+                    {content}
                   </h1>
                 ) : (
                   <span
                     key={i}
                     className={`${styles.wordChip} ${
                       w.kind === "skipped" ? styles.wordChipSkipped : ""
-                    } ${w.kind === "low_confidence" ? styles.wordChipLowConfidence : ""}`}
+                    } ${w.kind === "low_confidence" ? styles.wordChipLowConfidence : ""} ${
+                      w.kind === "fingerspelled" ? styles.wordChipFingerspelled : ""
+                    }`}
                   >
-                    {w.text}
+                    {content}
                   </span>
-                )
-              )}
+                );
+              })}
             </div>
           ) : (
             <p className={styles.glossPlaceholder}>ENTER A WORD BELOW TO BEGIN</p>
