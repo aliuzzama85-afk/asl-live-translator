@@ -1053,30 +1053,39 @@ what Silero VAD was planned for (`CLAUDE.md`'s architecture section updated
 to say so).
 
 **What was built**, by commit:
-- `689f4d9` (found along the way) **`npm run lint` never linted `.jsx`
-  files** (ESLint 8 without `--ext`), so every "eslint clean" since Stage 5
-  covered `.js` only. Fixed; `react/prop-types` turned off with the reason
-  recorded; the one real finding (a `useMemo` recomputing every render) fixed.
-- `b2af48c` `pose_library/gloss_tokens.py`: the gloss-token → lookup-word
+- `9a8e220` (found along the way, configuration only) **`npm run lint`
+  never linted `.jsx` files** (ESLint 8 without `--ext`), so every "eslint
+  clean" since Stage 5 covered `.js` only. The script now passes
+  `--ext .js,.jsx,.mjs`. `react/prop-types` is turned off with the reason
+  recorded: on the first real pass it fired 42 times (CaptionBand.jsx 24,
+  SkeletonCanvas.jsx 7, StatusStrip.jsx 6, App.jsx 5) because props are
+  documented with JSDoc, not declared at runtime.
+- `926df68` the first real pass's only other finding, a
+  `react-hooks/exhaustive-deps` warning in `App.jsx`:
+  `stitched?.wordBoundaries ?? []` made a new empty array on every render
+  while nothing was loaded, so the `currentBoundary` `useMemo` re-ran on
+  each of those renders. Now a stable module-level constant. No observable
+  behavior change (the memo's result is `null` either way).
+- `6d8afa8` `pose_library/gloss_tokens.py`: the gloss-token → lookup-word
   rule extracted from `extract_vocab_stems` (identical 231 stems on the real
   CSV before/after), plus the playback stop-list (be, do, at, too, would,
   well, and, to).
-- `07d4c19` `pipeline/gloss_server.py`: `/api/gloss` + `/api/health`, every
+- `8169063` `pipeline/gloss_server.py`: `/api/gloss` + `/api/health`, every
   error code in the plan plus `forbidden_origin`/`not_found`,
   sanitization, 4KB body cap, token-bucket rate limit, `Origin` check,
   phrase text never logged.
-- `d9dff7a` the frontend core: ASR adapter (Web Speech + dev-only scripted),
+- `5d8ba21` the frontend core: ASR adapter (Web Speech + dev-only scripted),
   phrase chunking, gloss client (timeouts, error mapping, a 15s connect
   grace), `useLiveTranscription` (restarts, restart-storm cutoff, error
   messages, flush-on-stop), `useLivePhraseQueue`, `useLiveMode`
   (privacy notice → service ready → recognizer; one file beyond the plan's
   list, keeping `App.jsx` readable).
-- `c216f20` UI: MIC button (`MIC` / `MIC ON`), LOOP visibly disabled with
+- `d6e87a2` UI: MIC button (`MIC` / `MIC ON`), LOOP visibly disabled with
   its reason, MIC's own disabled reason, privacy notice, live transcript
   line, live status-strip states, `SPEECH→SIGN` latency.
-- `a4075d6` `npm run dev:live` (Node stdlib, no new dependency), the `/api`
+- `c280bb1` `npm run dev:live` (Node stdlib, no new dependency), the `/api`
   proxy, `.env.example` fixes.
-- `4e5c616` a fix found in the browser check (below) and a better demo
+- `9c9d9fc` a fix found in the browser check (below) and a better demo
   script.
 
 **Found and fixed during implementation**, beyond the plan:
