@@ -74,8 +74,9 @@ the viewer).
 - **`PerspectiveCamera`, 30° vertical field of view.** That's enough
   perspective for depth to read (near fingertips look nearer) without the
   distortion of a wide lens.
-- **Viewed from 20° to the side and 12° above**, not dead-on. A pure front
-  view keeps the image's own viewpoint, and so it keeps the ambiguity: a
+- **Viewed from 32° to the side and 16° above**, not dead-on (the plan
+  first said 20°/12°; changed after the browser check, see "Implementation
+  notes" at the end). A pure front view keeps the image's own viewpoint, and so it keeps the ambiguity: a
   curled finger pointing straight at the camera looks the same as a short
   straight one. Turning a little shows the curl directly while the hand
   stays recognizably "facing you". This is a fixed viewing angle, not a
@@ -99,9 +100,11 @@ camera follows the hand.
 ### Materials: the existing token colors, now lit
 - **Bones**: `MeshStandardMaterial` in `--color-skeleton-bone` (#F5F5F0),
   roughness 0.45: a soft, matte off-white.
-- **Joints**: `MeshStandardMaterial` in `--color-skeleton-joint` (#FFC857,
-  amber), roughness 0.35. This is the same bone/joint color split the 2D view
-  uses, so it reads as the same avatar, now solid.
+- **Joints**: fingertips and wrists in `--color-skeleton-joint` (#FFC857,
+  amber, roughness 0.35); interior joints in the bone color. (The plan first
+  made every joint amber, like the 2D view; changed after the browser check,
+  see "Implementation notes".) This matches the 2D view's own emphasis,
+  which draws larger dots at tips and wrists.
 - **Palm**: a translucent fill (bone color, 35% opacity) spanning the wrist
   and the five knuckle bases. It gives the hand a readable surface and makes
   palm orientation (toward you / away / sideways) obvious, which a line
@@ -125,10 +128,18 @@ camera follows the hand.
 - **Proportions come from the landmarks**, since segment lengths are the real
   joint positions, so finger segments naturally get shorter toward the tip.
   **Thickness scales with each hand's own palm length** (wrist → middle
-  knuckle), so a hand filmed small or large looks equally solid. Finger
-  radius is about 9% of palm length, tapering to about 7% at the tip. Joint
-  radius is about 10–12% (a larger wrist and knuckles, smaller fingertips).
-  Those are typical human hand ratios, not data from anywhere else.
+  knuckle), so a hand filmed small or large looks equally solid. As built,
+  finger radius is 6% of palm length (tapering to 4.8% at the tip), and
+  joints are 6.4–8.2% (wrist 10%), always at least 1.2× the bone ends they
+  join. That's deliberately slimmer than the "typical human" ~9% first
+  planned (see "Implementation notes"). The fallback palm length, used when
+  it can't be measured, is the library median: 0.09, measured over all 144
+  served sequences.
+- **Arms** are drawn thinner than a finger (bone 6%, joint 7.5% of the mean
+  palm length). A true forearm is about 3× a finger's width, and since the
+  camera zooms to the hands, true-width arms dominated the frame.
+- Bone cylinders are **open-ended**: both ends sit inside a wider joint
+  sphere, so end caps would only add another surface to z-fight with.
 - The palm's knuckle-to-knuckle lines are drawn thinner, since the palm fill
   now carries that edge.
 
@@ -154,7 +165,7 @@ frame with no tracked hand" rule) is **extended to 3D, not replaced**:
   still passes `alpha = 1`, so it snaps instantly, exactly as today.
 - `cameraPlacement3D(camera, view)` → the perspective camera's world
   position and look-at target: aim at the eased center, from the fixed
-  20°/12° direction, at the distance where `span` fills the view
+  32°/16° direction, at the distance where `span` fills the view
   (`distance = (span / 2) / tan(fov / 2)`).
 
 The existing 2D functions and their tests are unchanged. The existing tests'
@@ -225,11 +236,48 @@ hands it to Three.js, so there's no Three.js error noise when it's missing.
 
 ## Known gotchas / open questions
 
-- The 20°/12° viewing angle and the thickness ratios are design judgments,
-  to be checked by eye on real signs (Section 7). They're named constants,
-  so they're easy to tune.
+- The viewing angle and the thickness ratios are design judgments, tuned
+  by eye on real signs (Section 7 and "Implementation notes"). They're named
+  constants (`VIEW_3D` in `skeletonBones.js`; `HAND_RADII`/`ARM_RADII` in
+  `handGeometry.js`), so they're easy to tune.
 - Two hands can be far apart ("angry" spans up to 75% of the frame width), so
   the fit zooms out and each hand is small. That's the same trade-off the 2D
   view has, not a new one.
 - Dataset letters are single frames held still, so they won't show
   micro-motion in 3D either.
+
+---
+
+## Implementation notes (from the real-browser check)
+
+Built as planned: pure geometry in `src/lib/handGeometry.js`
+(`describeHand`, `computeHandGeometry`), the Three.js scene in
+`src/lib/handScene.js`, the 3D camera functions in `skeletonBones.js`, and
+`SkeletonCanvas.jsx` choosing WebGL2 or the 2D fallback once per mounted
+canvas. What changed when the result was looked at in a real browser
+(headed in-app pane, plus headless Edge for saved screenshots):
+
+1. **Arms were too heavy.** At the first "typical" forearm thickness they
+   dominated "about". Now thinner than a finger.
+2. **Fingers were too thick for closed handshapes.** At ~9% of palm length,
+   A's folded fingers merged into a single mass. Slimmed to 6%.
+3. **Jagged seams where bones meet joints.** With joint and bone radii
+   nearly equal, the sphere and cylinder surfaces met almost tangentially
+   and z-fought. The fix: every joint is at least 1.2× the bone ends it
+   joins (a unit test pins this invariant), plus open-ended cylinders.
+4. **All-amber joints hid the handshape.** With every joint amber, a
+   fingertip looked identical to a knuckle, and A's folded fingers read as
+   fingers pointing up. Now amber marks only fingertips and wrists, so each
+   finger reads as one capsule ending in a marked tip. This change is what
+   makes A vs O legible: A's four tips sit low over the palm with the thumb
+   tip raised alongside, while O's five tips cluster together at the top.
+5. **The viewing angle moved from 20°/12° to 32°/16°.** Real hand depth is
+   modest (a few hundredths), so 20° showed little; the change is subtle
+   either way.
+
+Seen, and not changed (not caused by this work): at the "angry → about"
+boundary, "about" opens with one-frame tracking flicker between hands (left,
+right, left; checked in the data). For a frame or two, the tracked hand can
+sit outside the soft-follow camera's view while it eases over. The 2D
+fallback shows the same frame, so this is the existing camera and data
+behavior, not a 3D regression.

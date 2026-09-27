@@ -242,3 +242,18 @@ design decision, a gotcha), update this file before ending the session.
     `import.meta.env.DEV`.
   - **A real microphone test still needs a person** (see `PROJECT_STATUS.md`
     Section 15).
+- **WebGL rendering can't be unit-tested here -- manual browser check
+  required.** The Stage band renders a lit 3D hand with Three.js (WebGL2),
+  falling back to the old 2D canvas when no WebGL2 context is available
+  (`frontend/RENDERING_UPGRADE_PLAN.md`). happy-dom has no WebGL, so every
+  component/App test exercises only the 2D fallback. The pure parts
+  (`handGeometry.js`, the 3D camera functions in `skeletonBones.js`) are
+  unit-tested, but the rendered image isn't. It's the same kind of gap as
+  the CSS layout bug above: any change to `handScene.js`, the radii, the
+  colors, or the camera angle must be checked by eye in a real browser. The
+  first real look caught four things no test could have: arms too heavy,
+  fingers merging in closed handshapes, z-fighting seams where bones meet
+  joints, and all-amber joints making fingertips indistinguishable from
+  knuckles. Playwright's headless Edge (`channel="msedge"`) renders WebGL2
+  fine for saved screenshots, and `--disable-webgl --disable-webgl2`
+  forces the 2D fallback for before/after comparisons.

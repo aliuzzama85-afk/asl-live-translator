@@ -11,6 +11,14 @@ pre-installed for the *future* v2 stretch goal, not used in v1 — plus
 `eslint`/`prettier`, no `src/` yet, no CSS framework, no CSS-in-JS library).
 Everything below is planned against that real, empty-of-app-code baseline.
 
+> **Update 2026-09-28 — rendering is now 3D.** The Stage band renders a lit
+> 3D hand with Three.js (WebGL2), using the data's real hand `z`, and falls
+> back to the 2D Canvas renderer described here only when WebGL2 isn't
+> available. Design: `RENDERING_UPGRADE_PLAN.md`; commit `938fa3b`; status:
+> `PROJECT_STATUS.md` Section 16. Section 1's rendering approach, bone
+> styling, and "`z` is not used" describe the 2D fallback; the camera fit
+> (below) was extended to 3D, not replaced.
+
 ---
 
 ## 0. Design direction — committed, not a menu
@@ -229,7 +237,9 @@ far simpler than trying to infer aspect ratio after the fact. Flagged in
 
 `z` is not used for 2D rendering in v1 (it's present in the data for a
 possible v2 3D mapping, per `types.py`'s docstring, but a 2D stick figure has
-no use for depth).
+no use for depth). *(Superseded 2026-09-28, `938fa3b`: the 3D renderer uses hand
+`z` 1:1. Arm `z` is still unused, because it's on a different reference
+frame; see `RENDERING_UPGRADE_PLAN.md` Section 2.)*
 
 Concretely: canvas backing-store size is `cssSize * window.devicePixelRatio`
 (sharp on high-DPI screens, a real readability requirement, not a nice-to-
@@ -260,6 +270,13 @@ this doc's Accessibility pass (below).
 This changes *how* points are projected, not the square-canvas/no-aspect-
 correction simplification described above — that limitation, and its
 "Known gotchas" entry, still applies unchanged.
+
+**Extended to 3D (2026-09-28, `938fa3b`):** `computeContentBounds3D` /
+`computeFitTransform3D` / `stepCamera3D` add depth to the same fit, sharing
+one easing helper with `stepCamera`: the same hand-only fit, the same
+hold-steady rule on untracked frames, and the same reduced-motion snap.
+`cameraPlacement3D` then turns the fit into a perspective camera, 32° to the
+side and 16° above. The 2D functions are unchanged.
 
 ---
 
@@ -480,7 +497,9 @@ build order, not omissions):
   the playback queue from `pipeline-engineer`, not yet built).
 - Fingerspelling rendering (data doesn't exist yet, Section 5).
 - 3D rigged avatar / Three.js / Mixamo (explicit v2 stretch goal; `three` in
-  `package.json` stays unused by v1 code).
+  `package.json` stays unused by v1 code). *(Update 2026-09-28: `three` now
+  renders a solid-geometry 3D hand, `938fa3b`; a rigged/skinned avatar is still
+  out of scope.)*
 - Any live latency measurement against a real pipeline (there is no live
   pipeline yet to measure) — the "latency" readout in Section 0's status
   strip is scoped down to *this stage's own* fetch-to-first-frame time, not a
@@ -608,3 +627,13 @@ utility-class generation to reason about.
   over-zoomed; now a `min(100cqw, 100cqh)` square in a size container
   (`SkeletonCanvas.module.css`). See `CLAUDE.md`'s gotchas log for the
   lesson (happy-dom tests can't catch layout bugs; check in a real browser).
+- **Resolved 2026-09-28 (`938fa3b`): closed handshapes (A, O) ambiguous in 2D,
+  and the "phantom static hand"** (an untracked hand drawn as a static
+  cluster). The 3D renderer shows finger curl and hides sentinel landmarks.
+  The 2D fallback keeps both old behaviors. Trade-offs:
+  - fingers are slimmer than real anatomy (6% vs about 9% of palm length);
+  - arms are flat, because arm `z` is on a different reference frame;
+  - there's no WebGL context-loss recovery yet.
+
+  See `PROJECT_STATUS.md` Section 16. WebGL output can't be tested in
+  happy-dom, so rendering changes need a real-browser check (`CLAUDE.md`).

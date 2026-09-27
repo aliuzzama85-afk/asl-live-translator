@@ -1,8 +1,10 @@
 # Project Status
 
-Last updated: 2026-09-26 (**build-order step 4, live speech input (Stages 1-2),
-built and automated-tested; a real-microphone test by a person is still
-pending** — see Section 15). Earlier the same day: fingerspelling, **all 26 letters complete**, 24
+Last updated: 2026-09-28 (**the Stage band now renders a lit 3D hand**
+(Three.js), resolving the "A/O ambiguous in 2D" and "phantom static hand"
+limitations — see Section 16). 2026-09-26: **build-order step 4, live speech
+input (Stages 1-2), built and automated-tested; a real-microphone test by a
+person is still pending** — see Section 15. Earlier the same day: fingerspelling, **all 26 letters complete**, 24
 from the MIT-licensed `sid220/asl-now-fingerspelling` dataset and J and Z
 self-recorded — see Section 14, which updates Section 13). Build-order step 3,
 multi-word playback with cross-sign interpolation, done 2026-09-25 — see
@@ -294,12 +296,13 @@ is verification that needs people, not code:
    fingerspelling alphabet.
 
 Loose ends, not blocking step 4 but worth closing out when convenient:
-- **"Phantom static hand" rendering characteristic** (Section 12): a
-  one-handed word's unused hand renders as a static cluster at the
-  projected origin instead of being invisible, confirmed pre-existing in
-  Stage 5's single-word playback too, not just multi-word transitions. Not
-  fixed; a real fix (skip-drawing a zero-sentinel hand, or fading it) is
-  future work if it turns out to matter visually in practice.
+- ~~**"Phantom static hand" rendering characteristic** (Section 12)~~
+  **RESOLVED 2026-09-28** (`938fa3b`, Section 16): the 3D renderer hides every
+  `(0,0,0)` sentinel landmark and anything touching it, so an untracked hand
+  isn't drawn at all. (The 2D fallback, used only without WebGL2, still
+  draws the old cluster.)
+- **No WebGL context-loss recovery** (Section 16): if the GPU drops the
+  context mid-session, the Stage band stops updating until reload.
 - **Fluent-signer review of the fingerspelling alphabet** (Section 5
   item 7, Section 14): all 26 letters exist, but none has been checked by
   someone who knows ASL fingerspelling. Any letter that reads wrong can be
@@ -632,7 +635,9 @@ per `PLAN.md` Section 6, or deferred to a later stage):
   ("fed gloss manually", step 2) this section covers. **This, not Stage 1/2
   live speech, is the next build-order step** — see Section 6.
 - 3D rigged avatar / Three.js — explicit v2 stretch goal; `three` stays
-  unused by v1 code.
+  unused by v1 code. *(Update 2026-09-28: `three` now renders a lit 3D
+  solid-geometry hand, `938fa3b`, Section 16. A rigged/skinned avatar is still
+  the separate stretch goal.)*
 - No live latency measurement against a real pipeline (none exists yet) —
   the status strip's latency readout is honestly scoped to this stage's own
   fetch-to-first-frame time only, never a simulated pipeline number.
@@ -744,6 +749,8 @@ only means the same characteristic is also present, unchanged, during the
 inserted transition frames. Not fixed in this pass; a real fix
 (skip-drawing a zero-sentinel hand entirely, or fading it in/out) is future
 work if it turns out to matter visually in practice, not blocking anything.
+**RESOLVED 2026-09-28** (`938fa3b`, Section 16): the 3D renderer skip-draws it
+(no fade: a hand simply appears when tracking starts).
 
 **Two camera/rendering bugs found in manual browser testing after
 `7125800`, fixed together** (45/45 tests passing after the fix):
@@ -987,7 +994,8 @@ plumbing tests are unchanged.
   correct** handshapes. **A and O are correct but harder to read.**
   Curled-finger letters are inherently ambiguous in a 2D stick skeleton with
   no depth; that's a rendering limit, not a data problem, since the landmark
-  values are the dataset's own.
+  values are the dataset's own. **RESOLVED 2026-09-28** (`938fa3b`, Section 16):
+  in the 3D renderer A and O read clearly apart.
 - "about black help": the stitched timeline is ABOUT (frames 0–68) → B, L,
   A, C, K (18 frames each: 6 transition + 12 hold) → HELP (159–221), 7.37s,
   with every letter carrying its `hf:sid220/asl-now-fingerspelling:…`
@@ -1179,3 +1187,69 @@ console), and `dev:live` starts Python with `PYTHONUNBUFFERED=1`. Regression
 test: `test_cli_answers_health_before_the_model_finishes_loading` (starts
 the real CLI; fails against the old code, passes against the fix).
 
+---
+
+## 16. 3D hand rendering upgrade — done (2026-09-28)
+
+**What:** `SkeletonCanvas` now renders each sign as a lit, solid 3D hand and
+arm with Three.js (WebGL2) instead of a flat 2D stick figure. Design and
+as-built decisions: `frontend/RENDERING_UPGRADE_PLAN.md` (its closing
+"Implementation notes" record what the real-browser check changed).
+Implementation commit: `938fa3b`. This is purely a rendering-layer change:
+`usePoseSequences`, `reconstructTimeline`, `stitchTimelines`,
+fingerspelling, multi-word queueing, live speech, and `SkeletonCanvas`'s
+props are unchanged.
+
+**How:**
+- It uses `three`, which was already a dependency but had never been used;
+  nothing new was installed.
+- It uses the real hand z-depth already in the data, 1:1.
+- The existing soft-follow camera fit is extended to 3D, not replaced.
+  `stepCamera3D` shares `stepCamera`'s easing and its hold-steady rule for
+  untracked frames, and reduced motion still snaps.
+- The pure geometry (`handGeometry.js`) is unit-tested. The WebGL layer
+  (`handScene.js`) is kept thin and checked by eye.
+- Without WebGL2, the old 2D renderer is used, unchanged.
+
+**Limitations resolved:**
+- **Closed handshapes ambiguous in 2D (Section 14): RESOLVED.** In A, four
+  fingertips sit low over the palm with the thumb raised alongside; in O,
+  all five tips cluster together at the top. That comes from the depth plus
+  amber marking only fingertips and wrists.
+- **Phantom static hand (Section 12): RESOLVED, as a bonus fix.** Sentinel
+  landmarks, and every bone or palm triangle touching one, are hidden.
+
+**Verified in a real browser** (the in-app pane, plus headless Edge for
+saved screenshots, each compared against the 2D fallback). The words
+checked cover different handshape types:
+- "about": an open hand;
+- "angry": a claw handshape, two-handed;
+- fingerspelled A and O;
+- "angry about": a multi-word transition.
+
+All read clearly. The user reviewed and approved the result on
+2026-09-28.
+
+**Tests:**
+- 29 new: `handGeometry.test.js` and `skeletonBones3d.test.js`. They were
+  checked to fail against deliberately broken code (phantom fix removed,
+  joint/bone ratio violated, hold-steady rule removed).
+- The 132 existing frontend tests pass unchanged: 161 total. Python: 203.
+- The rendered image itself can't be unit-tested (happy-dom has no WebGL);
+  see `CLAUDE.md`'s gotchas.
+
+**Trade-offs, documented and accepted:**
+- **Fingers are slimmer than real anatomy:** 6% of palm length vs about 9%,
+  so curled fingers stay visually separate in closed handshapes.
+- **Arms are flat (no depth), and thinner than a finger.** Pose-subset z is
+  hip-relative, on a different reference frame from hand z and 10-30x
+  larger, so arms are drawn in the wrist plane. At true width they
+  dominated the zoomed-in frame.
+- **No WebGL context-loss recovery yet.** A lost GPU context stops the Stage
+  band until reload.
+- **Amber marks only fingertips and wrists**, not every joint as in 2D;
+  interior joints are bone-colored.
+- **Existing behavior, not a 3D regression:** at a word boundary with
+  tracking flicker (e.g. "angry → about"), a frame can briefly show no hand
+  while the soft-follow camera catches up. The 2D fallback shows the same
+  frame.
