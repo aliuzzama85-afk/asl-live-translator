@@ -187,10 +187,29 @@ const FIT_PADDING_FRACTION = 0.18;
  *   full-frame behavior rather than divide by zero).
  */
 export function computeContentBounds(poses) {
+  // The 2D bounds are the 3D bounds with z dropped: one implementation of
+  // "which points count" (frontend/RENDERING_UPGRADE_PLAN.md Section 4).
+  const { minX, minY, maxX, maxY } = computeContentBounds3D(poses);
+  return { minX, minY, maxX, maxY };
+}
+
+/**
+ * Like `computeContentBounds`, but also tracks the real depth (`z`) of every
+ * real landmark, for the 3D renderer's camera fit.
+ *
+ * @param {Array<Array<[number, number, number]>>} poses
+ * @returns {{minX: number, minY: number, minZ: number, maxX: number, maxY: number, maxZ: number}}
+ *   In data coordinates (`z` as MediaPipe reports it: smaller = closer). A
+ *   degenerate input (no real point at all) falls back to the full `[0, 1]`
+ *   frame at zero depth, as the 2D version does.
+ */
+export function computeContentBounds3D(poses) {
   let minX = Infinity;
   let minY = Infinity;
+  let minZ = Infinity;
   let maxX = -Infinity;
   let maxY = -Infinity;
+  let maxZ = -Infinity;
 
   for (const pose of poses) {
     for (const point of pose) {
@@ -199,13 +218,15 @@ export function computeContentBounds(poses) {
       if (point[0] > maxX) maxX = point[0];
       if (point[1] < minY) minY = point[1];
       if (point[1] > maxY) maxY = point[1];
+      if (point[2] < minZ) minZ = point[2];
+      if (point[2] > maxZ) maxZ = point[2];
     }
   }
 
   if (!Number.isFinite(minX)) {
-    return { minX: 0, minY: 0, maxX: 1, maxY: 1 };
+    return { minX: 0, minY: 0, minZ: 0, maxX: 1, maxY: 1, maxZ: 0 };
   }
-  return { minX, minY, maxX, maxY };
+  return { minX, minY, minZ, maxX, maxY, maxZ };
 }
 
 /**
@@ -228,6 +249,26 @@ export function computeFitTransform(bounds) {
   const centerY = (bounds.minY + bounds.maxY) / 2;
   const span = Math.max(width, height) * (1 + FIT_PADDING_FRACTION * 2);
   return { centerX, centerY, span };
+}
+
+/**
+ * The 3D counterpart of `computeFitTransform`: a padded cube around the
+ * content, so the perspective camera can frame it.
+ *
+ * @param {{minX: number, minY: number, minZ: number, maxX: number, maxY: number, maxZ: number}} bounds -
+ *   From `computeContentBounds3D`.
+ * @returns {{centerX: number, centerY: number, centerZ: number, span: number}}
+ *   Data coordinates; `span` is the largest extent (x, y, or depth) plus the
+ *   same `FIT_PADDING_FRACTION` the 2D fit uses.
+ */
+export function computeFitTransform3D(bounds) {
+  const { centerX, centerY } = computeFitTransform(bounds);
+  const width = Math.max(bounds.maxX - bounds.minX, 1e-6);
+  const height = Math.max(bounds.maxY - bounds.minY, 1e-6);
+  const depth = Math.max(bounds.maxZ - bounds.minZ, 1e-6);
+  const centerZ = (bounds.minZ + bounds.maxZ) / 2;
+  const span = Math.max(width, height, depth) * (1 + FIT_PADDING_FRACTION * 2);
+  return { centerX, centerY, centerZ, span };
 }
 
 /**
@@ -284,13 +325,90 @@ export function projectPoint(point, transform, cssSize) {
  *   `camera` object.
  */
 export function stepCamera(camera, pose, isPoseSubsetByIndex, alpha) {
+  return easeCameraTowardHands(camera, pose, isPoseSubsetByIndex, alpha, (handPose) =>
+    computeFitTransform(computeContentBounds([handPose]))
+  );
+}
+
+/**
+ * The 3D renderer's soft-follow camera: exactly `stepCamera`'s behavior
+ * (hand-only fit, exponential easing, held steady on a frame with no real
+ * hand point, `alpha = 1` snaps for reduced motion), fitting the real 3D
+ * bounds and easing `centerZ` as well.
+ *
+ * @param {{centerX: number, centerY: number, centerZ: number, span: number}} camera -
+ *   Updated in place and returned.
+ * @param {Array<[number, number, number]>} pose
+ * @param {boolean[]} isPoseSubsetByIndex
+ * @param {number} alpha - In `(0, 1]`.
+ * @returns {{centerX: number, centerY: number, centerZ: number, span: number}}
+ */
+export function stepCamera3D(camera, pose, isPoseSubsetByIndex, alpha) {
+  return easeCameraTowardHands(camera, pose, isPoseSubsetByIndex, alpha, (handPose) =>
+    computeFitTransform3D(computeContentBounds3D([handPose]))
+  );
+}
+
+/** Shared by `stepCamera` and `stepCamera3D`: ease every field of the
+ * camera toward this frame's hand-only fit, or hold it exactly still when
+ * the frame has no real hand point (see `stepCamera`'s docstring). */
+function easeCameraTowardHands(camera, pose, isPoseSubsetByIndex, alpha, fitHands) {
   const handPose = filterOutPoseSubset(pose, isPoseSubsetByIndex);
   if (handPose.every(isUndetectedPoint)) {
     return camera;
   }
-  const rawFit = computeFitTransform(computeContentBounds([handPose]));
-  camera.centerX += (rawFit.centerX - camera.centerX) * alpha;
-  camera.centerY += (rawFit.centerY - camera.centerY) * alpha;
-  camera.span += (rawFit.span - camera.span) * alpha;
+  const rawFit = fitHands(handPose);
+  for (const key of Object.keys(rawFit)) {
+    camera[key] += (rawFit[key] - camera[key]) * alpha;
+  }
   return camera;
+}
+
+/** Scale applied to hand-landmark `z`. MediaPipe documents hand `z` as
+ * "roughly the same scale as x", so real depth is used 1:1, with no
+ * exaggeration (frontend/RENDERING_UPGRADE_PLAN.md Section 2). */
+export const DEPTH_SCALE = 1;
+
+/**
+ * Maps a data-space landmark to Three.js world space (y up, +z toward the
+ * viewer): `X = x`, `Y = -y`, `Z = -z * DEPTH_SCALE`.
+ *
+ * Pose-subset points (shoulders/elbows/wrists) are placed at `Z = 0`, the
+ * hands' wrist plane: their `z` comes from MediaPipe's *pose* model,
+ * measured from the hips, and is 10-30x larger than hand depth (measured:
+ * -0.1 to -2.5), so using it would put elbows far behind the hands.
+ *
+ * @param {[number, number, number]} point
+ * @param {boolean} [isPoseSubset]
+ * @returns {[number, number, number]}
+ */
+export function toWorld(point, isPoseSubset = false) {
+  return [point[0], -point[1], isPoseSubset ? 0 : -point[2] * DEPTH_SCALE];
+}
+
+/** The 3D renderer's fixed viewing direction and lens
+ * (RENDERING_UPGRADE_PLAN.md Section 3): 20 degrees to the side and 12
+ * above, so a finger curling toward the viewer reads as a curl, not a short
+ * straight finger; 30-degree vertical field of view. */
+export const VIEW_3D = { fovDeg: 30, yawDeg: 32, pitchDeg: 16 };
+
+/**
+ * Where the perspective camera goes for a given (eased) 3D fit.
+ *
+ * @param {{centerX: number, centerY: number, centerZ: number, span: number}} camera -
+ *   Data coordinates, from `stepCamera3D`.
+ * @param {{fovDeg: number, yawDeg: number, pitchDeg: number}} [view]
+ * @returns {{target: [number, number, number], position: [number, number, number], distance: number}}
+ *   World coordinates. `distance` is where `span` exactly fills the vertical
+ *   field of view: `(span / 2) / tan(fov / 2)`.
+ */
+export function cameraPlacement3D(camera, view = VIEW_3D) {
+  const target = toWorld([camera.centerX, camera.centerY, camera.centerZ]);
+  const fov = (view.fovDeg * Math.PI) / 180;
+  const yaw = (view.yawDeg * Math.PI) / 180;
+  const pitch = (view.pitchDeg * Math.PI) / 180;
+  const distance = camera.span / 2 / Math.tan(fov / 2);
+  const dir = [Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), Math.cos(yaw) * Math.cos(pitch)];
+  const position = target.map((t, i) => t + dir[i] * distance);
+  return { target, position, distance };
 }

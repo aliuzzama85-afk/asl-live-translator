@@ -1,13 +1,18 @@
 import { useEffect, useMemo, useRef } from "react";
 
+import { computeHandGeometry, describeHand } from "../lib/handGeometry.js";
+import { createHandScene } from "../lib/handScene.js";
 import {
   buildSkeletonTopology,
   computeContentBounds,
+  computeContentBounds3D,
   computeFitTransform,
+  computeFitTransform3D,
   filterOutPoseSubset,
   isUndetectedPoint,
   projectPoint,
   stepCamera,
+  stepCamera3D,
 } from "../lib/skeletonBones.js";
 import styles from "./SkeletonCanvas.module.css";
 
@@ -20,7 +25,25 @@ function readSkeletonColors() {
   return {
     bone: style.getPropertyValue("--color-skeleton-bone").trim() || "#F5F5F0",
     joint: style.getPropertyValue("--color-skeleton-joint").trim() || "#FFC857",
+    bg: style.getPropertyValue("--color-bg").trim() || "#0A0A0B",
+    panel: style.getPropertyValue("--color-panel").trim() || "#141417",
+    accent: style.getPropertyValue("--color-accent-amber").trim() || "#FFC857",
   };
+}
+
+/** Creates the 3D scene if the browser can give this canvas a WebGL2
+ * context, else returns `null` so the component keeps its 2D renderer
+ * (`frontend/RENDERING_UPGRADE_PLAN.md` Section 6). Checked here, before any
+ * Three.js code runs, so a missing context is a quiet fallback rather than a
+ * Three.js error. happy-dom has no WebGL, so tests always take the 2D path. */
+function tryCreateHandScene(canvas) {
+  const context = canvas.getContext("webgl2");
+  if (!context) return null;
+  try {
+    return createHandScene({ canvas, context, colors: readSkeletonColors() });
+  } catch {
+    return null;
+  }
 }
 
 function lerp(a, b, t) {
@@ -46,8 +69,10 @@ function lerpPoint(pointA, pointB, t) {
 }
 
 /**
- * The Stage band: an HTML5 Canvas skeleton renderer driven by a
- * reconstructed timeline (see `lib/reconstructTimeline.js`).
+ * The Stage band: a lit 3D hand/arm renderer (Three.js, WebGL) driven by a
+ * reconstructed timeline (see `lib/reconstructTimeline.js`), falling back to
+ * the flat 2D Canvas skeleton when WebGL isn't available
+ * (`frontend/RENDERING_UPGRADE_PLAN.md`).
  *
  * Playback uses a `requestAnimationFrame` loop with a delta-time
  * accumulator, advancing one source frame every `1000 / fps` ms of real
@@ -91,8 +116,14 @@ export function SkeletonCanvas({
   const canvasRef = useRef(null);
   const bezelRef = useRef(null);
   const dprSizeRef = useRef({ cssSize: 0, dpr: 1 });
+  // The 3D scene, or `null` while on the 2D fallback (see `tryCreateHandScene`).
+  const handSceneRef = useRef(null);
 
   const topology = useMemo(() => buildSkeletonTopology(landmarkNames), [landmarkNames]);
+  const handDescription = useMemo(
+    () => describeHand(landmarkNames, topology),
+    [landmarkNames, topology]
+  );
 
   // A single fit for the *whole* sequence badly dilutes the zoom benefit --
   // hands travel during a sign (a real word's combined hand span across its
@@ -115,9 +146,14 @@ export function SkeletonCanvas({
           filterOutPoseSubset(frame.pose, topology.isPoseSubsetByIndex)
         )
       : [];
-    return computeFitTransform(computeContentBounds(poses));
+    return {
+      fit2D: computeFitTransform(computeContentBounds(poses)),
+      fit3D: computeFitTransform3D(computeContentBounds3D(poses)),
+    };
   }, [timeline, topology]);
-  const cameraRef = useRef(initialFitTransform);
+  const cameraRef = useRef(initialFitTransform.fit2D);
+  // The 3D renderer's camera: the same soft-follow fit, with depth.
+  const camera3DRef = useRef(initialFitTransform.fit3D);
 
   const playbackRef = useRef({
     frameIndex: 0,
@@ -136,8 +172,22 @@ export function SkeletonCanvas({
       lastTimestamp: null,
       endedFired: false,
     };
-    cameraRef.current = initialFitTransform;
+    cameraRef.current = { ...initialFitTransform.fit2D };
+    camera3DRef.current = { ...initialFitTransform.fit3D };
   }, [timeline, initialFitTransform]);
+
+  // Created once per mounted canvas (declared before the sizing effect, so
+  // the first sizing pass already reaches the scene).
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return undefined;
+    const handScene = tryCreateHandScene(canvas);
+    handSceneRef.current = handScene;
+    return () => {
+      handSceneRef.current = null;
+      handScene?.dispose();
+    };
+  }, []);
 
   // DPI-aware, responsive canvas sizing: the backing store is
   // `cssSize * devicePixelRatio`, scaled back down via ctx.scale, so the
@@ -155,6 +205,10 @@ export function SkeletonCanvas({
       const cssSize = Math.max(1, Math.floor(Math.min(bezel.clientWidth, bezel.clientHeight)));
       const dpr = window.devicePixelRatio || 1;
       dprSizeRef.current = { cssSize, dpr };
+      if (handSceneRef.current) {
+        handSceneRef.current.resize(cssSize, dpr);
+        return;
+      }
       canvas.width = Math.round(cssSize * dpr);
       canvas.height = Math.round(cssSize * dpr);
     };
@@ -170,10 +224,22 @@ export function SkeletonCanvas({
     const canvas = canvasRef.current;
     if (!canvas || !timeline || timeline.frames.length === 0) return undefined;
 
-    const ctx = canvas.getContext("2d");
+    const handScene = handSceneRef.current;
+    const ctx = handScene ? null : canvas.getContext("2d");
     let rafId;
 
-    const draw = (pose, dimmed) => {
+    // The 3D renderer: the same soft-follow camera rules as the 2D one
+    // below (`stepCamera3D` shares `stepCamera`'s easing and hold-steady
+    // logic, and reduced motion still snaps with alpha=1). Untracked
+    // landmarks are hidden, not drawn at the origin.
+    const draw3D = (pose, dimmed) => {
+      const camera = camera3DRef.current;
+      const smoothingAlpha = reducedMotion ? 1 : CAMERA_SMOOTHING_ALPHA;
+      stepCamera3D(camera, pose, topology.isPoseSubsetByIndex, smoothingAlpha);
+      handScene.render(computeHandGeometry(pose, handDescription), { dimmed, camera });
+    };
+
+    const draw2D = (pose, dimmed) => {
       const { cssSize, dpr } = dprSizeRef.current;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, cssSize, cssSize);
@@ -229,6 +295,8 @@ export function SkeletonCanvas({
       }
       ctx.globalAlpha = 1;
     };
+
+    const draw = handScene ? draw3D : draw2D;
 
     const frames = timeline.frames;
     const lastIndex = frames.length - 1;
@@ -298,7 +366,7 @@ export function SkeletonCanvas({
 
     rafId = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(rafId);
-  }, [timeline, isPlaying, loop, reducedMotion, onEnded, onFrameChange, topology]);
+  }, [timeline, isPlaying, loop, reducedMotion, onEnded, onFrameChange, topology, handDescription]);
 
   return (
     <div className={styles.stageWrapper}>
