@@ -29,13 +29,21 @@ const LIVE_UNSUPPORTED_REASON = "LIVE SPEECH NEEDS CHROME, EDGE, OR SAFARI";
 /** The idle prompt, saying exactly where live mode is -- never "listening"
  * before the recognizer actually is (e.g. while the privacy notice is still
  * waiting for OK). */
-function liveIdleMessage(live) {
+function liveIdleMessage(live, inputMode) {
   if (live.privacyPrompt) return "CONFIRM THE NOTICE BELOW TO START LISTENING";
+  if (live.serviceStartupMessage) return live.serviceStartupMessage;
+  if (live.queue.translating) return "TRANSLATING…";
   if (live.listening) return "LISTENING — START SPEAKING";
   if (live.micRequested) return "STARTING…";
-  return "ENTER A WORD BELOW TO BEGIN";
+  return inputMode === "translate"
+    ? "TYPE ENGLISH BELOW, OR TURN ON THE MIC"
+    : "ENTER SIGN WORDS BELOW TO BEGIN";
 }
 const LOOP_DISABLED_REASON = "LOOP IS OFF DURING LIVE SPEECH";
+/** Loop would block the phrase queue (it advances when a phrase ends), so
+ * TRANSLATE mode turns it off, like live speech. */
+const LOOP_DISABLED_TRANSLATE_REASON = "LOOP IS OFF IN TRANSLATE MODE — USE EXACT WORDS TO LOOP";
+const LOOP_DISABLED_DRAINING_REASON = "LOOP IS OFF UNTIL QUEUED PHRASES FINISH";
 
 /** True when a word batch's results are for exactly `words`. For one render
  * after `words` changes, the hook still returns the previous batch, which
@@ -79,6 +87,13 @@ function formatMissingWordsMessage(words) {
  * phrase at a time, taking the next only when the avatar is idle. Nothing
  * downstream of `submittedWords` knows whether words were typed or spoken.
  *
+ * Typed input has two modes. TRANSLATE (the default) sends typed English
+ * through that same live path (`live.submitTyped` → the gloss model → the
+ * same queue), so typed and spoken phrases share one queue, in order. EXACT
+ * WORDS looks each typed word up literally (no gloss model), for testing
+ * exact vocabulary; it's the only path that calls `setSubmittedWords`
+ * directly.
+ *
  * @param {Object} [props]
  * @param {import("./lib/asr/index.js").AsrChoice} [props.asr] - Overrides
  *   ASR selection (tests inject a fake recognizer here).
@@ -90,6 +105,8 @@ export function App({ asr: asrOverride, glossClient } = {}) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [loop, setLoop] = useState(false);
   const [currentFrameIndex, setCurrentFrameIndex] = useState(0);
+  // "translate" | "exact"; in memory only, so a reload is back to TRANSLATE.
+  const [inputMode, setInputMode] = useState("translate");
   const reducedMotion = usePrefersReducedMotion();
 
   const asr = useMemo(() => asrOverride ?? selectAsr(), [asrOverride]);
@@ -223,21 +240,32 @@ export function App({ asr: asrOverride, glossClient } = {}) {
     [plan.words, currentUnit]
   );
 
+  // EXACT WORDS: typed words go straight to lookup, untranslated.
+  // The literal sequence isn't a queued phrase, so the transcript and gloss
+  // lines of the last one are hidden rather than shown above it.
   const handleSearch = useCallback((words, truncated) => {
+    setLivePhrase(null);
     setSubmittedWords(words);
     setWasTruncated(truncated);
   }, []);
+  // TRANSLATE: typed English goes through the live path's gloss model and queue.
+  const { submitTyped } = live;
+  const handleTranslate = useCallback((text) => submitTyped(text), [submitTyped]);
 
   // --- live speech ---------------------------------------------------------
   const { takeNext, markDone, readyCount, waitingCount } = live.queue;
   const liveActive = live.micRequested || liveStage !== "idle" || waitingCount > 0;
 
   // Loop would block the queue forever, so it's off (and visibly disabled,
-  // see CaptionBand) while live speech is active. It stays off afterwards;
-  // the user turns it back on.
+  // see CaptionBand) while live speech is active and in TRANSLATE mode. It
+  // stays off afterwards; the user turns it back on.
+  let loopDisabledReason = null;
+  if (live.micRequested) loopDisabledReason = LOOP_DISABLED_REASON;
+  else if (inputMode === "translate") loopDisabledReason = LOOP_DISABLED_TRANSLATE_REASON;
+  else if (liveActive) loopDisabledReason = LOOP_DISABLED_DRAINING_REASON;
   useEffect(() => {
-    if (liveActive) setLoop(false);
-  }, [liveActive]);
+    if (loopDisabledReason) setLoop(false);
+  }, [loopDisabledReason]);
 
   // Idle and a phrase is ready: hand its words to the existing pipeline.
   useEffect(() => {
@@ -306,10 +334,17 @@ export function App({ asr: asrOverride, glossClient } = {}) {
       ? batch.fetchMs + (letterBatch.status === "ready" ? letterBatch.fetchMs : 0)
       : null;
   // In live mode the readout is the measured time from the recognizer
-  // finalizing a phrase to its signing starting: a real number, never a
-  // simulated one.
-  const liveLatency = liveActive || live.listening;
+  // finalizing a phrase (or a typed phrase being submitted) to its signing
+  // starting: a real number, never a simulated one.
+  const liveLatency = liveActive || live.listening || inputMode === "translate";
   const latencyMs = liveLatency ? speechToSignMs : fetchMs;
+  const phraseSource = livePhrase?.source ?? (live.micRequested ? "speech" : "typed");
+  const latencyLabel = !liveLatency
+    ? "FETCH"
+    : phraseSource === "typed"
+      ? "TEXT→SIGN"
+      : "SPEECH→SIGN";
+  const idleMessage = liveIdleMessage(live, inputMode);
 
   return (
     <div className={styles.app}>
@@ -320,7 +355,7 @@ export function App({ asr: asrOverride, glossClient } = {}) {
         wordCount={submittedWords.length}
         skippedCount={skippedWords.length}
         fingerspelledCount={fingerspelledCount}
-        latencyLabel={liveLatency ? "SPEECH→SIGN" : "FETCH"}
+        latencyLabel={latencyLabel}
         queuedCount={liveStripState ? waitingCount : 0}
       />
 
@@ -342,13 +377,16 @@ export function App({ asr: asrOverride, glossClient } = {}) {
             abortMessage={abortMessage}
             missingMessage={missingMessage}
             missingDetail={missingDetail}
-            idleMessage={liveIdleMessage(live)}
+            idleMessage={idleMessage}
           />
         )}
       </main>
 
       <CaptionBand
         onSearch={handleSearch}
+        onTranslate={handleTranslate}
+        inputMode={inputMode}
+        onInputModeChange={setInputMode}
         captionWords={captionWords}
         source={currentSource}
         isPlaying={isPlaying}
@@ -361,12 +399,12 @@ export function App({ asr: asrOverride, glossClient } = {}) {
         missingMessage={missingMessage}
         missingDetail={missingDetail}
         wasTruncated={wasTruncated}
-        loopDisabledReason={liveActive ? LOOP_DISABLED_REASON : null}
+        loopDisabledReason={loopDisabledReason}
         live={{
           supported: live.supported,
           unsupportedReason: live.supported ? null : LIVE_UNSUPPORTED_REASON,
           micOn: live.micRequested,
-          idleMessage: liveIdleMessage(live),
+          idleMessage,
           onToggleMic: live.toggleMic,
           active: liveActive,
           privacyPrompt: live.privacyPrompt,
@@ -377,6 +415,8 @@ export function App({ asr: asrOverride, glossClient } = {}) {
           droppedCount: live.queue.droppedCount,
           entries: live.queue.entries,
           partial: live.partial,
+          // Only while the queue is in use or its phrase is what's loaded.
+          showTranscript: liveActive || livePhrase !== null,
         }}
       />
     </div>

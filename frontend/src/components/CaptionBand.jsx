@@ -99,24 +99,73 @@ function phraseTag(entry) {
 }
 
 /**
- * The live transcript line: the latest phrase heard (with what happened to
- * it), then the words still being recognized. Only the finished phrase is
- * announced to screen readers; announcing every interim word would flood
- * them.
+ * The live transcript line: the phrase being signed (or, when nothing is,
+ * the latest phrase heard or typed), with what happened to it; then, if a
+ * newer phrase is waiting behind it, that one as `NEXT`; then the words still
+ * being recognized. Only finished phrases are announced to screen readers;
+ * announcing every interim word would flood them.
+ *
+ * Under it, once the shown phrase is translated, the gloss line: exactly what
+ * the model produced (`WHERE BE BATHROOM`), plus the gloss tokens that won't
+ * be signed (pronoun markers, stop-list words), so what was translated and
+ * what is being signed can both be seen -- always for the same phrase.
  */
 function LiveTranscript({ entries, partial }) {
   const latest = entries[entries.length - 1] ?? null;
-  const tag = latest ? phraseTag(latest) : null;
-  if (!latest && !partial) return null;
+  const signing = entries.findLast((e) => e.status === "signing") ?? null;
+  const shown = signing ?? latest;
+  const next = latest !== shown ? latest : null;
+  if (!shown && !partial) return null;
+  const tag = shown ? phraseTag(shown) : null;
+  const nextTag = next ? phraseTag(next) : null;
+  const dropped = shown?.dropped ?? [];
   return (
-    <p className={styles.liveLine}>
-      <span aria-live="polite">
-        {latest ? <span className={styles.liveFinal}>{latest.text}</span> : null}
-        {tag ? <span className={styles.liveTag}> · {tag}</span> : null}
-      </span>
-      {partial ? <span className={styles.livePartial}> {partial}</span> : null}
-    </p>
+    <>
+      <p className={styles.liveLine}>
+        <span aria-live="polite">
+          {shown ? <span className={styles.liveFinal}>{shown.text}</span> : null}
+          {tag ? <span className={styles.liveTag}> · {tag}</span> : null}
+          {next ? (
+            <span className={styles.liveNext}>
+              {" "}
+              · NEXT: {next.text}
+              {nextTag ? ` · ${nextTag}` : ""}
+            </span>
+          ) : null}
+        </span>
+        {partial ? <span className={styles.livePartial}> {partial}</span> : null}
+      </p>
+      {shown?.gloss !== undefined ? (
+        <p className={styles.glossLine} aria-live="polite">
+          <span className={styles.glossLineLabel}>GLOSS: </span>
+          <span className={styles.glossLineText}>{shown.gloss || "(EMPTY)"}</span>
+          {dropped.length > 0 ? (
+            <span className={styles.glossLineLabel}> · NOT SIGNED: {dropped.join(" ")}</span>
+          ) : null}
+        </p>
+      ) : null}
+    </>
   );
+}
+
+/** What the input row says in each typed-input mode. */
+const INPUT_MODE_TEXT = {
+  translate: {
+    label: "ENGLISH",
+    placeholder: "Type English, e.g. where is the bathroom",
+    submit: "SIGN",
+  },
+  exact: {
+    label: "SIGN WORDS",
+    placeholder: "Type sign words, e.g. about angry",
+    submit: "LOOKUP",
+  },
+};
+
+function inputPlaceholder(live, inputMode, inputDisabled) {
+  if (!inputDisabled) return INPUT_MODE_TEXT[inputMode].placeholder;
+  if (live?.micOn) return "Mic is on — turn it off to type";
+  return "Translated phrases still playing…";
 }
 
 /**
@@ -124,16 +173,26 @@ function LiveTranscript({ entries, partial }) {
  * sequence rendered as a row of words with the playing word highlighted,
  * and status banners (low-confidence / skipped / truncated).
  *
- * Per `frontend/MULTIWORD_PLAN.md` Sections 1 and 5: submit splits on
- * whitespace into a sequence of already-glossed words (still no gloss-model/
- * ASR involvement at this stage -- generalizing the original single-word
- * "fed gloss manually" scope to multiple gloss tokens, not changing it).
+ * Typed input has two modes, chosen with a two-button toggle beside the
+ * input (each button has `aria-pressed`, like PLAY/LOOP/MIC):
+ * - TRANSLATE: the typed English text is handed, as is, to `onTranslate`,
+ *   which runs it through the gloss model like speech
+ *   (`pipeline/STAGE1_2_PLAN.md`, typed-input section).
+ * - EXACT WORDS: submit splits on whitespace into a sequence of words, each
+ *   looked up literally (`frontend/MULTIWORD_PLAN.md` Sections 1 and 5), for
+ *   testing exact vocabulary without the gloss model.
  * Play/Loop are unchanged real `<button>` elements with `aria-pressed` and
  * a visible custom focus ring.
  *
  * @param {Object} props
  * @param {(words: string[], wasTruncated: boolean) => void} props.onSearch -
- *   Called with the parsed, capped word sequence on submit.
+ *   EXACT WORDS: called with the parsed, capped word sequence on submit.
+ * @param {(text: string) => void} [props.onTranslate] - TRANSLATE: called
+ *   with the raw typed text on submit.
+ * @param {"translate"|"exact"} [props.inputMode] - Which typed-input mode is
+ *   on. Defaults to `"exact"`, the only one that works without `onTranslate`.
+ * @param {(mode: "translate"|"exact") => void} [props.onInputModeChange] -
+ *   When given, the TRANSLATE / EXACT WORDS toggle is shown.
  * @param {CaptionWord[]} props.captionWords - The full submitted sequence,
  *   in order, for the word-progress row. Empty if nothing is loaded.
  * @param {string|null} props.source - WLASL attribution string for the
@@ -171,10 +230,15 @@ function LiveTranscript({ entries, partial }) {
  *   `idleMessage` (the placeholder text for the current live state),
  *   `onToggleMic`, `active` (mic on or live phrases still playing),
  *   `privacyPrompt`, `onAcknowledgePrivacy`, `onCancelPrivacy`,
- *   `statusMessage`, `errorMessage`, `droppedCount`, `entries`, `partial`.
+ *   `statusMessage`, `errorMessage`, `droppedCount`, `entries`, `partial`,
+ *   `showTranscript` (false while an EXACT WORDS sequence, not a queued
+ *   phrase, is what's loaded).
  */
 export function CaptionBand({
   onSearch,
+  onTranslate,
+  inputMode = "exact",
+  onInputModeChange,
   captionWords,
   source,
   isPlaying,
@@ -192,9 +256,20 @@ export function CaptionBand({
 }) {
   const [inputValue, setInputValue] = useState("");
   const liveActive = Boolean(live?.active);
+  // Typing and the mic never compete: typing is off while the mic is on. In
+  // EXACT WORDS mode it's also off while queued phrases play, since a literal
+  // lookup would replace the phrase being signed; in TRANSLATE mode a typed
+  // phrase simply joins the queue.
+  const inputDisabled = Boolean(live?.micOn) || (inputMode === "exact" && liveActive);
+  const modeText = INPUT_MODE_TEXT[inputMode];
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    if (inputMode === "translate") {
+      if (!inputValue.trim()) return;
+      onTranslate(inputValue);
+      return;
+    }
     const { words, wasTruncated: truncated } = parseWords(inputValue);
     if (words.length === 0) return;
     onSearch(words, truncated);
@@ -268,7 +343,9 @@ export function CaptionBand({
         </div>
       ) : null}
 
-      {live ? <LiveTranscript entries={live.entries} partial={live.partial} /> : null}
+      {live?.showTranscript ? (
+        <LiveTranscript entries={live.entries} partial={live.partial} />
+      ) : null}
 
       <div className={styles.mainRow}>
         <div className={styles.glossArea}>
@@ -350,8 +427,28 @@ export function CaptionBand({
       </div>
 
       <form className={styles.searchForm} onSubmit={handleSubmit}>
+        {onInputModeChange ? (
+          <div className={styles.modeToggle} role="group" aria-label="Typed input mode">
+            <button
+              type="button"
+              className={styles.controlButton}
+              onClick={() => onInputModeChange("translate")}
+              aria-pressed={inputMode === "translate"}
+            >
+              TRANSLATE
+            </button>
+            <button
+              type="button"
+              className={styles.controlButton}
+              onClick={() => onInputModeChange("exact")}
+              aria-pressed={inputMode === "exact"}
+            >
+              EXACT WORDS
+            </button>
+          </div>
+        ) : null}
         <label className={styles.searchLabel} htmlFor="gloss-word-search">
-          WORD
+          {modeText.label}
         </label>
         <input
           id="gloss-word-search"
@@ -359,19 +456,13 @@ export function CaptionBand({
           className={styles.searchInput}
           value={inputValue}
           onChange={(e) => setInputValue(e.target.value)}
-          placeholder={
-            liveActive
-              ? live.micOn
-                ? "Mic is on — turn it off to type"
-                : "Live phrases still playing…"
-              : "e.g. about, phone, thanks"
-          }
-          disabled={liveActive}
+          placeholder={inputPlaceholder(live, inputMode, inputDisabled)}
+          disabled={inputDisabled}
           autoComplete="off"
           spellCheck={false}
         />
-        <button type="submit" className={styles.searchSubmit} disabled={liveActive}>
-          LOOKUP
+        <button type="submit" className={styles.searchSubmit} disabled={inputDisabled}>
+          {modeText.submit}
         </button>
       </form>
     </footer>

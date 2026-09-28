@@ -137,21 +137,31 @@ afterEach(() => {
 });
 
 /** Submits one or more space-separated words through the real CaptionBand
- * search form, the same path a user takes -- not a direct state injection.
+ * search form in EXACT WORDS mode (each word looked up literally, no gloss
+ * model), the same path a user takes -- not a direct state injection. The
+ * app defaults to TRANSLATE, so the mode is selected explicitly first.
  * Per `frontend/MULTIWORD_PLAN.md` Section 1, multiple words are typed
  * space-separated into the same single input the original single-word app
  * used. */
-async function searchFor(text) {
-  const input = screen.getByLabelText("WORD");
+async function searchExactWords(text) {
+  fireEvent.click(screen.getByRole("button", { name: "EXACT WORDS" }));
+  const input = screen.getByLabelText("SIGN WORDS");
   fireEvent.change(input, { target: { value: text } });
   fireEvent.click(screen.getByRole("button", { name: "LOOKUP" }));
+}
+
+/** Submits English through the search form in TRANSLATE mode (the default),
+ * which sends it to the gloss client like a spoken phrase. */
+function typeEnglish(text) {
+  fireEvent.change(screen.getByLabelText("ENGLISH"), { target: { value: text } });
+  fireEvent.click(screen.getByRole("button", { name: "SIGN" }));
 }
 
 describe("App integration: real pose-library words", () => {
   it('renders a clean "ok" word ("about"): skeleton, gloss caption, and READY status all appear', async () => {
     render(<App />);
 
-    await searchFor("about");
+    await searchExactWords("about");
 
     await waitFor(() => {
       expect(screen.getByRole("heading", { name: "ABOUT" })).toBeInTheDocument();
@@ -176,7 +186,7 @@ describe("App integration: real pose-library words", () => {
   it('renders a real low_confidence word ("phone"): degraded-skeleton banner and real quality_notes appear, skeleton still plays', async () => {
     render(<App />);
 
-    await searchFor("phone");
+    await searchExactWords("phone");
 
     await waitFor(() => {
       expect(screen.getByRole("heading", { name: "PHONE" })).toBeInTheDocument();
@@ -199,7 +209,7 @@ describe("App integration: real pose-library words", () => {
   it('renders "NO SIGN FOUND" for a guaranteed-OOV word, per App.jsx\'s actual StageMessage copy', async () => {
     render(<App />);
 
-    await searchFor("xyzzynotasign");
+    await searchExactWords("xyzzynotasign");
 
     // The message appears twice by design (Stage replaces the skeleton with
     // it, per PLAN.md Section 5; CaptionBand additionally banners it) --
@@ -230,7 +240,7 @@ describe("App integration: real pose-library words", () => {
     // "xyzzynotasign" (confirmed absent from all 118 real manifest keys,
     // see the OOV test above) sits *between* the two real words, not at
     // an edge -- per PLAN.md Section 7's explicit test-bar requirement.
-    await searchFor("about xyzzynotasign phone");
+    await searchExactWords("about xyzzynotasign phone");
 
     // The sequence still plays: the skeleton canvas is present, not
     // replaced by a full-stage message, per PLAN.md Section 4's "skip, not
@@ -266,7 +276,7 @@ describe("App integration: real pose-library words", () => {
   it("falls back to the full 'no sign found' message when every word in the sequence is missing", async () => {
     render(<App />);
 
-    await searchFor("xyzzynotasign alsomissing");
+    await searchExactWords("xyzzynotasign alsomissing");
 
     await waitFor(() => {
       expect(screen.getAllByText(/NO SIGN FOUND FOR/)).toHaveLength(2);
@@ -353,7 +363,7 @@ describe("App integration: fingerspelling (SYNTHETIC letter data)", () => {
     const fetchMock = stubFetchWithLetters(["a", "b", "c"]);
     render(<App />);
 
-    await searchFor("cab");
+    await searchExactWords("cab");
 
     await waitFor(() => {
       expect(screen.getByRole("heading", { name: "FINGERSPELLED: CAB" })).toBeInTheDocument();
@@ -383,7 +393,7 @@ describe("App integration: fingerspelling (SYNTHETIC letter data)", () => {
     stubFetchWithLetters(["a", "b", "c"]);
     render(<App />);
 
-    await searchFor("about cab phone");
+    await searchExactWords("about cab phone");
 
     await waitFor(() => {
       expect(screen.getByText(/READY — 3\/3 WORDS \(1 FINGERSPELLED\)/)).toBeInTheDocument();
@@ -401,7 +411,7 @@ describe("App integration: fingerspelling (SYNTHETIC letter data)", () => {
     stubFetchWithLetters(["a", "c"]);
     render(<App />);
 
-    await searchFor("about cab");
+    await searchExactWords("about cab");
 
     await waitFor(() => {
       expect(
@@ -417,7 +427,7 @@ describe("App integration: fingerspelling (SYNTHETIC letter data)", () => {
     stubFetchWithLetters(["a", "b", "c"], { lowConfidence: ["b"] });
     render(<App />);
 
-    await searchFor("cab");
+    await searchExactWords("cab");
 
     await waitFor(() => {
       expect(screen.getByText(/LOW-CONFIDENCE: LETTER "B"/)).toBeInTheDocument();
@@ -430,7 +440,7 @@ describe("App integration: fingerspelling (SYNTHETIC letter data)", () => {
     const fetchMock = stubFetchWithLetters(["a", "b", "c"]);
     render(<App />);
 
-    await searchFor("abc1");
+    await searchExactWords("abc1");
 
     await waitFor(() => {
       expect(screen.getAllByText(/ONLY A–Z CAN BE FINGERSPELLED/)).toHaveLength(2);
@@ -485,7 +495,7 @@ describe("App integration: fingerspelling with the real converted letters", () =
     stubFetchWithRealLetters();
     render(<App />);
 
-    await searchFor("cab");
+    await searchExactWords("cab");
 
     await waitFor(() => {
       expect(screen.getByRole("heading", { name: "FINGERSPELLED: CAB" })).toBeInTheDocument();
@@ -501,7 +511,7 @@ describe("App integration: fingerspelling with the real converted letters", () =
     stubFetchWithRealLetters();
     render(<App />);
 
-    await searchFor("jazz");
+    await searchExactWords("jazz");
 
     await waitFor(() => {
       expect(screen.getByRole("heading", { name: "FINGERSPELLED: JAZZ" })).toBeInTheDocument();
@@ -532,22 +542,28 @@ const GLOSSES = {
   "about phone": ["about", "phone"],
   "a cab": ["cab"],
   "just pronouns": [],
+  // Shaped like real server output: the raw gloss keeps pronoun markers and
+  // stop-list words, which `dropped` lists and `words` leaves out.
+  "tell me about the cab": {
+    gloss: "X-I ABOUT BE CAB",
+    words: ["about", "cab"],
+    dropped: ["X-I", "BE"],
+  },
 };
 
 function fakeGlossClient({ health = "ready" } = {}) {
   return {
     waitForGlossService: vi.fn(async () => ({ state: health })),
-    glossPhrase: vi.fn(async (text, phraseId) => ({
-      ok: true,
-      result: {
-        phrase_id: phraseId,
-        text,
-        gloss: (GLOSSES[text] ?? []).join(" ").toUpperCase(),
-        words: GLOSSES[text] ?? [],
-        dropped: [],
-        inference_ms: 5,
-      },
-    })),
+    glossPhrase: vi.fn(async (text, phraseId) => {
+      const entry = GLOSSES[text] ?? [];
+      const { gloss, words, dropped } = Array.isArray(entry)
+        ? { gloss: entry.join(" ").toUpperCase(), words: entry, dropped: [] }
+        : entry;
+      return {
+        ok: true,
+        result: { phrase_id: phraseId, text, gloss, words, dropped, inference_ms: 5 },
+      };
+    }),
   };
 }
 
@@ -645,7 +661,11 @@ describe("App integration: live speech (fake recognizer)", () => {
     expect(screen.getByText("LOOP IS OFF DURING LIVE SPEECH")).toBeInTheDocument();
     expect(loopButton).toHaveAttribute("aria-describedby", "loop-disabled-reason");
     // Typing is disabled too, with the reason in the placeholder.
-    expect(screen.getByLabelText("WORD")).toBeDisabled();
+    expect(screen.getByLabelText("ENGLISH")).toBeDisabled();
+    expect(screen.getByLabelText("ENGLISH")).toHaveAttribute(
+      "placeholder",
+      "Mic is on — turn it off to type"
+    );
   });
 
   it("a denied microphone turns the mic off with a clear message", async () => {
@@ -714,4 +734,218 @@ describe("App integration: live-mode prompts never claim to be listening early",
     act(() => fake.emit({ type: "listening" }));
     expect(screen.getAllByText("LISTENING — START SPEAKING").length).toBeGreaterThan(0);
   });
+});
+
+/**
+ * Typed input, TRANSLATE mode (the default) vs EXACT WORDS. TRANSLATE sends
+ * typed English through the same gloss client and phrase queue as speech;
+ * everything after the (fake) gloss client is the real playback path.
+ */
+describe("App integration: typed input modes", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    stubFetchWithLetters(["a", "b", "c"]);
+  });
+
+  function poseRequests() {
+    return fetch.mock.calls.map(([url]) => String(url)).filter((u) => u.startsWith("/poses/"));
+  }
+
+  it("TRANSLATE is the default and plays the model's words, not the typed ones", async () => {
+    const gloss = fakeGlossClient();
+    render(<App asr={createFakeAsr().asr} glossClient={gloss} />);
+
+    expect(screen.getByRole("button", { name: "TRANSLATE" })).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    );
+    typeEnglish("tell me about the cab");
+
+    await waitFor(() => expect(screen.getByRole("heading", { name: "ABOUT" })).toBeInTheDocument());
+    expect(gloss.waitForGlossService).toHaveBeenCalled();
+    expect(gloss.glossPhrase).toHaveBeenCalledWith("tell me about the cab", 1);
+    // Played through the real usePoseSequences -> fingerspelling -> stitch path:
+    // ABOUT signed, CAB (not in the library) fingerspelled.
+    expect(screen.getByRole("img", { name: "ASL sign skeleton animation" })).toBeInTheDocument();
+    expect(screen.getByText("FINGERSPELLED: CAB")).toBeInTheDocument();
+    expect(screen.getByText("SIGNING")).toBeInTheDocument();
+    // The typed words the model dropped were never looked up or spelled.
+    expect(poseRequests().sort()).toEqual([
+      "/poses/about.json",
+      "/poses/cab.json",
+      "/poses/manifest.json",
+    ]);
+    // The gloss line shows exactly what the model produced, and what isn't signed.
+    expect(screen.getByText("X-I ABOUT BE CAB")).toBeInTheDocument();
+    expect(screen.getByText(/NOT SIGNED: X-I BE/)).toBeInTheDocument();
+    expect(screen.getByText("tell me about the cab")).toBeInTheDocument();
+    expect(screen.getByText("TEXT→SIGN")).toBeInTheDocument();
+  });
+
+  it("EXACT WORDS never calls the gloss client", async () => {
+    const gloss = fakeGlossClient();
+    render(<App asr={createFakeAsr().asr} glossClient={gloss} />);
+
+    await searchExactWords("about cab");
+
+    await waitFor(() => expect(screen.getByRole("heading", { name: "ABOUT" })).toBeInTheDocument());
+    expect(screen.getByText("FINGERSPELLED: CAB")).toBeInTheDocument();
+    expect(gloss.waitForGlossService).not.toHaveBeenCalled();
+    expect(gloss.glossPhrase).not.toHaveBeenCalled();
+    expect(screen.queryByText(/GLOSS:/)).not.toBeInTheDocument();
+    // LOOP works as before in EXACT WORDS mode.
+    const loopButton = screen.getByRole("button", { name: "LOOP" });
+    expect(loopButton).toBeEnabled();
+    fireEvent.click(loopButton);
+    expect(loopButton).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("an unreachable gloss service shows the banner, and nothing is signed literally", async () => {
+    const gloss = fakeGlossClient({ health: "unreachable" });
+    render(<App asr={createFakeAsr().asr} glossClient={gloss} />);
+
+    typeEnglish("about cab");
+
+    await waitFor(() => {
+      expect(screen.getByText(/TRANSLATION SERVICE NOT RUNNING/)).toBeInTheDocument();
+    });
+    expect(screen.getByText(/EXACT WORDS MODE WORKS WITHOUT IT/)).toBeInTheDocument();
+    expect(gloss.glossPhrase).not.toHaveBeenCalled();
+    expect(poseRequests()).toEqual([]);
+    expect(
+      screen.queryByRole("img", { name: "ASL sign skeleton animation" })
+    ).not.toBeInTheDocument();
+    expect(screen.getByText("ERROR")).toBeInTheDocument();
+  });
+
+  it("a server that was ready and then stopped is reported without the startup grace", async () => {
+    const gloss = fakeGlossClient();
+    gloss.waitForGlossService
+      .mockResolvedValueOnce({ state: "ready" })
+      .mockResolvedValueOnce({ state: "unreachable" });
+    render(<App asr={createFakeAsr().asr} glossClient={gloss} />);
+
+    typeEnglish("about");
+    await waitFor(() => expect(screen.getByRole("heading", { name: "ABOUT" })).toBeInTheDocument());
+    // First check: the server may still be starting, so the normal grace applies.
+    expect(gloss.waitForGlossService.mock.calls[0][0].graceMs).toBeUndefined();
+
+    typeEnglish("a cab");
+    await waitFor(() => {
+      expect(screen.getByText(/TRANSLATION SERVICE NOT RUNNING/)).toBeInTheDocument();
+    });
+    // Seen ready before, so "no answer" now means stopped: reported at once.
+    expect(gloss.waitForGlossService.mock.calls[1][0].graceMs).toBe(0);
+    expect(gloss.glossPhrase).toHaveBeenCalledTimes(1);
+  });
+
+  it("LOOP is visibly disabled in TRANSLATE mode, with its reason", async () => {
+    render(<App asr={createFakeAsr().asr} glossClient={fakeGlossClient()} />);
+    typeEnglish("about");
+    await waitFor(() => expect(screen.getByRole("heading", { name: "ABOUT" })).toBeInTheDocument());
+
+    const loopButton = screen.getByRole("button", { name: "LOOP" });
+    expect(loopButton).toBeDisabled();
+    expect(
+      screen.getByText("LOOP IS OFF IN TRANSLATE MODE — USE EXACT WORDS TO LOOP")
+    ).toBeInTheDocument();
+    expect(loopButton).toHaveAttribute("aria-describedby", "loop-disabled-reason");
+  });
+
+  it("EXACT WORDS is locked while a translated phrase plays, then drops its stale gloss line", async () => {
+    render(<App asr={createFakeAsr().asr} glossClient={fakeGlossClient()} />);
+    typeEnglish("about");
+    await waitFor(() => expect(screen.getByRole("heading", { name: "ABOUT" })).toBeInTheDocument());
+    expect(screen.getByText("GLOSS:")).toBeInTheDocument();
+
+    // A literal lookup would replace the phrase being signed, so it waits.
+    fireEvent.click(screen.getByRole("button", { name: "EXACT WORDS" }));
+    expect(screen.getByLabelText("SIGN WORDS")).toBeDisabled();
+    expect(screen.getByLabelText("SIGN WORDS")).toHaveAttribute(
+      "placeholder",
+      "Translated phrases still playing…"
+    );
+    expect(screen.getByText("LOOP IS OFF UNTIL QUEUED PHRASES FINISH")).toBeInTheDocument();
+
+    await waitFor(() => expect(screen.getByLabelText("SIGN WORDS")).toBeEnabled(), {
+      timeout: 8000,
+    });
+    await searchExactWords("cab");
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "FINGERSPELLED: CAB" })).toBeInTheDocument();
+    });
+    // The old phrase's transcript and gloss don't sit above the unrelated sequence.
+    expect(screen.queryByText("GLOSS:")).not.toBeInTheDocument();
+    expect(screen.queryByText("about")).not.toBeInTheDocument();
+  }, 15000);
+
+  it("the mode toggle is two real, focusable buttons with aria-pressed, and relabels the input", () => {
+    render(<App asr={createFakeAsr().asr} glossClient={fakeGlossClient()} />);
+
+    const group = screen.getByRole("group", { name: "Typed input mode" });
+    const translate = screen.getByRole("button", { name: "TRANSLATE" });
+    const exact = screen.getByRole("button", { name: "EXACT WORDS" });
+    expect(group).toContainElement(translate);
+    expect(group).toContainElement(exact);
+    // Native <button type="button">: keyboard focus plus Enter/Space activation
+    // come from the browser, as for PLAY/LOOP/MIC.
+    for (const button of [translate, exact]) {
+      expect(button.tagName).toBe("BUTTON");
+      expect(button).toHaveAttribute("type", "button");
+      button.focus();
+      expect(button).toHaveFocus();
+    }
+    expect(translate).toHaveAttribute("aria-pressed", "true");
+    expect(exact).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByLabelText("ENGLISH")).toHaveAttribute(
+      "placeholder",
+      "Type English, e.g. where is the bathroom"
+    );
+
+    fireEvent.click(exact);
+    expect(translate).toHaveAttribute("aria-pressed", "false");
+    expect(exact).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByLabelText("SIGN WORDS")).toHaveAttribute(
+      "placeholder",
+      "Type sign words, e.g. about angry"
+    );
+    expect(screen.getByRole("button", { name: "LOOKUP" })).toBeInTheDocument();
+
+    fireEvent.click(translate);
+    expect(translate).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "SIGN" })).toBeInTheDocument();
+  });
+
+  it("typed and spoken phrases share one queue, in order", async () => {
+    const fake = createFakeAsr();
+    const gloss = fakeGlossClient();
+    render(<App asr={fake.asr} glossClient={gloss} />);
+
+    // Speak a phrase, turn the mic off while it's still signing, then type one.
+    await turnMicOn();
+    await waitFor(() => expect(fake.instances).toHaveLength(1));
+    act(() => fake.emit({ type: "final", text: "about", at: performance.now() }));
+    await waitFor(() => expect(screen.getByRole("heading", { name: "ABOUT" })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "MIC ON" }));
+
+    // Typing in TRANSLATE mode is allowed while that phrase plays; it queues.
+    expect(screen.getByLabelText("ENGLISH")).toBeEnabled();
+    typeEnglish("a cab");
+    await waitFor(() => expect(screen.getByText(/SIGNING — 1 PHRASE QUEUED/)).toBeInTheDocument());
+    expect(gloss.glossPhrase.mock.calls).toEqual([
+      ["about", 1],
+      ["a cab", 2],
+    ]);
+    expect(screen.getByRole("heading", { name: "ABOUT" })).toBeInTheDocument();
+    // The transcript and gloss lines stay on the phrase being signed; the typed
+    // one waiting behind it is shown as NEXT.
+    expect(screen.getByText(/NEXT: a cab · QUEUED/)).toBeInTheDocument();
+    expect(screen.getByText("GLOSS:").nextSibling).toHaveTextContent("ABOUT");
+
+    // Only after ABOUT has finished does the typed phrase start.
+    await waitFor(
+      () => expect(screen.getByRole("heading", { name: "FINGERSPELLED: CAB" })).toBeInTheDocument(),
+      { timeout: 8000 }
+    );
+  }, 15000);
 });

@@ -19,9 +19,13 @@ const HISTORY_LIMIT = 20;
 /**
  * @typedef {Object} PhraseEntry
  * @property {number} phraseId
- * @property {string} text - What was heard (sanitized).
+ * @property {string} text - What was heard or typed (sanitized).
+ * @property {"speech"|"typed"} source
  * @property {PhraseStatus} status
  * @property {string} [reason] - For `not_translated`: the gloss client's error code.
+ * @property {string} [gloss] - The model's raw gloss, once translated.
+ * @property {string[]} [dropped] - Gloss tokens that won't be signed (pronoun
+ *   markers, stop-list words, punctuation), once translated.
  */
 
 /**
@@ -31,12 +35,14 @@ const HISTORY_LIMIT = 20;
  * @property {string} gloss
  * @property {string[]} words - Lookup words, ready for `setSubmittedWords`.
  * @property {string[]} dropped
- * @property {number} finalAt - When the recognizer finalized it (performance.now()).
+ * @property {number} finalAt - When the recognizer finalized it, or when it
+ *   was submitted if typed (performance.now()).
+ * @property {"speech"|"typed"} source
  */
 
 /**
- * The live phrase queue: final transcripts in, glossed phrases out, in
- * speaking order.
+ * The live phrase queue: final transcripts (spoken, or typed in TRANSLATE
+ * mode) in, glossed phrases out, in the order they were given.
  *
  * Phrases are translated one at a time, in order (the server is
  * single-threaded anyway), so results arrive in speaking order without any
@@ -52,7 +58,7 @@ const HISTORY_LIMIT = 20;
  *   translating: boolean,
  *   waitingCount: number,
  *   droppedCount: number,
- *   enqueueFinal: (final: {text: string, at: number}) => void,
+ *   enqueueFinal: (final: {text: string, at: number, source?: "speech"|"typed"}) => void,
  *   takeNext: () => GlossedPhrase | null,
  *   markDone: (phraseId: number) => void,
  *   resetNotices: () => void,
@@ -80,8 +86,10 @@ export function useLivePhraseQueue({ glossPhrase }) {
     };
   }, []);
 
-  const setStatus = useCallback((phraseId, status, reason) => {
-    setEntries((prev) => prev.map((e) => (e.phraseId === phraseId ? { ...e, status, reason } : e)));
+  const setStatus = useCallback((phraseId, status, fields = {}) => {
+    setEntries((prev) =>
+      prev.map((e) => (e.phraseId === phraseId ? { ...e, ...fields, status } : e))
+    );
   }, []);
 
   const pump = useCallback(async () => {
@@ -96,10 +104,13 @@ export function useLivePhraseQueue({ glossPhrase }) {
     const response = await glossRef.current(next.text, next.phraseId);
     if (!mountedRef.current) return;
 
+    const translated = response.ok
+      ? { gloss: response.result.gloss, dropped: response.result.dropped ?? [] }
+      : null;
     if (!response.ok) {
-      setStatus(next.phraseId, "not_translated", response.code);
+      setStatus(next.phraseId, "not_translated", { reason: response.code });
     } else if (response.result.words.length === 0) {
-      setStatus(next.phraseId, "nothing_to_sign");
+      setStatus(next.phraseId, "nothing_to_sign", translated);
     } else {
       readyRef.current.push({
         phraseId: next.phraseId,
@@ -108,8 +119,9 @@ export function useLivePhraseQueue({ glossPhrase }) {
         words: response.result.words,
         dropped: response.result.dropped,
         finalAt: next.finalAt,
+        source: next.source,
       });
-      setStatus(next.phraseId, "queued");
+      setStatus(next.phraseId, "queued", translated);
       const overflow = readyRef.current.length - MAX_BACKLOG;
       if (overflow > 0) {
         const droppedPhrases = readyRef.current.splice(0, overflow);
@@ -125,20 +137,26 @@ export function useLivePhraseQueue({ glossPhrase }) {
   }, [setStatus]);
 
   const enqueueFinal = useCallback(
-    ({ text, at }) => {
+    ({ text, at, source = "speech" }) => {
       const phrases = splitIntoPhrases(text);
       if (phrases.length === 0) return; // empty/whitespace: nothing to sign
       const added = phrases.map((phraseText) => ({
         phraseId: nextIdRef.current++,
         text: phraseText,
         finalAt: at,
+        source,
       }));
       pendingRef.current.push(...added);
       setPendingCount(pendingRef.current.length);
       setEntries((prev) =>
         [
           ...prev,
-          ...added.map((p) => ({ phraseId: p.phraseId, text: p.text, status: "waiting" })),
+          ...added.map((p) => ({
+            phraseId: p.phraseId,
+            text: p.text,
+            source: p.source,
+            status: "waiting",
+          })),
         ].slice(-HISTORY_LIMIT)
       );
       pump();

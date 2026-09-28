@@ -123,7 +123,18 @@
 .searchForm {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: var(--space-3);
+}
+
+/* TRANSLATE / EXACT WORDS: two controlButtons, the pressed one filled. */
+.modeToggle {
+  display: flex;
+  flex: none;
+}
+
+.modeToggle .controlButton + .controlButton {
+  border-left: none;
 }
 
 .searchLabel {
@@ -137,7 +148,7 @@
 }
 
 .searchInput {
-  flex: 1;
+  flex: 1 1 12rem;
   min-width: 0;
   font-family: var(--font-family-mono);
   font-weight: var(--font-body-weight);
@@ -212,7 +223,11 @@
   flex-direction: column;
   align-items: flex-end;
   gap: var(--space-1);
-  flex: none;
+  /* Can shrink, so a long disabled-reason note wraps instead of pushing the
+   * buttons off a phone-width screen. */
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 100%;
 }
 
 /* The visible reason next to a disabled control (LOOP during live speech,
@@ -224,6 +239,7 @@
   letter-spacing: var(--font-label-letter-spacing);
   text-transform: uppercase;
   color: var(--color-text-muted);
+  text-align: right;
 }
 
 .liveLine {
@@ -241,6 +257,10 @@
   color: var(--color-accent-amber);
   font-weight: var(--font-label-weight);
   text-transform: uppercase;
+}
+
+.liveNext {
+  color: var(--color-text-muted);
 }
 
 .livePartial {
@@ -277,4 +297,21 @@
 .searchSubmit:disabled {
   cursor: not-allowed;
   opacity: 0.5;
+}
+
+/* What the gloss model produced for the latest phrase, and which gloss
+ * tokens won't be signed (typed-input section of STAGE1_2_PLAN.md). */
+.glossLine {
+  font-family: var(--font-family-mono);
+  font-weight: var(--font-body-weight);
+  font-size: var(--font-body-size);
+  line-height: var(--font-body-line-height);
+}
+
+.glossLineLabel {
+  color: var(--color-text-muted);
+}
+
+.glossLineText {
+  color: var(--color-text-primary);
 }

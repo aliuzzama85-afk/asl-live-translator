@@ -127,4 +127,39 @@ describe("useLivePhraseQueue", () => {
     act(() => result.current.markDone(next.phraseId));
     expect(statusOf(result, "hello")).toBe("done");
   });
+
+  it("records each phrase's source, gloss, and dropped tokens (typed and spoken alike)", async () => {
+    const gloss = controllableGloss();
+    const { result } = renderHook(() => useLivePhraseQueue({ glossPhrase: gloss.glossPhrase }));
+    act(() => {
+      result.current.enqueueFinal({ text: "where is the bathroom", at: 1, source: "typed" });
+      result.current.enqueueFinal({ text: "just me", at: 2 });
+    });
+    await gloss.respond(0, {
+      ok: true,
+      result: { gloss: "WHERE BE BATHROOM", words: ["where", "bathroom"], dropped: ["BE"] },
+    });
+    await waitFor(() => expect(gloss.calls).toHaveLength(2));
+    await gloss.respond(1, { ok: true, result: { gloss: "X-I", words: [], dropped: ["X-I"] } });
+
+    const [typed, spoken] = result.current.entries;
+    expect(typed).toMatchObject({
+      source: "typed",
+      status: "queued",
+      gloss: "WHERE BE BATHROOM",
+      dropped: ["BE"],
+    });
+    // Speech is the default source; a phrase with nothing to sign keeps its gloss too.
+    expect(spoken).toMatchObject({
+      source: "speech",
+      status: "nothing_to_sign",
+      gloss: "X-I",
+      dropped: ["X-I"],
+    });
+    let next;
+    act(() => {
+      next = result.current.takeNext();
+    });
+    expect(next).toMatchObject({ source: "typed", words: ["where", "bathroom"], finalAt: 1 });
+  });
 });
