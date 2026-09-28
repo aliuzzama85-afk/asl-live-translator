@@ -567,6 +567,31 @@ function fakeGlossClient({ health = "ready" } = {}) {
   };
 }
 
+/** The service banner quotes its start commands in their real, lowercase
+ * form, each in a `<code>` whose class sets `text-transform: none`. The banner
+ * itself is uppercased by CSS, and an uppercased `PYTHON -M
+ * PIPELINE.GLOSS_SERVER` can't be copy-pasted (module names are
+ * case-sensitive). happy-dom applies no CSS, so the class and the rule it
+ * carries are both checked. */
+const CAPTION_CSS = fs.readFileSync(
+  path.resolve(__dirname, "components/CaptionBand.module.css"),
+  "utf-8"
+);
+
+function expectCopyableStartCommands() {
+  const banner = screen.getByText(/TRANSLATION SERVICE NOT RUNNING/);
+  expect(banner.textContent).toContain(
+    "START IT WITH: python -m pipeline.gloss_server (OR npm run dev:live)."
+  );
+  for (const command of ["python -m pipeline.gloss_server", "npm run dev:live"]) {
+    const code = screen.getByText(command, { selector: "code" });
+    expect(code.textContent).toBe(command);
+    expect(banner).toContainElement(code);
+    expect(code).toHaveClass(captionStyles.command);
+  }
+  expect(CAPTION_CSS).toMatch(/\.command\s*\{[^}]*text-transform:\s*none;/);
+}
+
 async function turnMicOn() {
   fireEvent.click(screen.getByRole("button", { name: "MIC" }));
   // First use: the privacy notice must be acknowledged before listening.
@@ -687,6 +712,7 @@ describe("App integration: live speech (fake recognizer)", () => {
     await waitFor(() => {
       expect(screen.getByText(/TRANSLATION SERVICE NOT RUNNING/)).toBeInTheDocument();
     });
+    expectCopyableStartCommands();
     expect(fake.instances).toHaveLength(0);
     expect(screen.getByRole("button", { name: "MIC" })).toHaveAttribute("aria-pressed", "false");
   });
@@ -810,6 +836,7 @@ describe("App integration: typed input modes", () => {
       expect(screen.getByText(/TRANSLATION SERVICE NOT RUNNING/)).toBeInTheDocument();
     });
     expect(screen.getByText(/EXACT WORDS MODE WORKS WITHOUT IT/)).toBeInTheDocument();
+    expectCopyableStartCommands();
     expect(gloss.glossPhrase).not.toHaveBeenCalled();
     expect(poseRequests()).toEqual([]);
     expect(

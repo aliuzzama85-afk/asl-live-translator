@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import * as defaultGlossClient from "../lib/glossClient.js";
+import { START_COMMANDS } from "../lib/glossClient.js";
 import { useLivePhraseQueue } from "./useLivePhraseQueue.js";
 import { useLiveTranscription } from "./useLiveTranscription.js";
 
@@ -15,7 +16,7 @@ const EXACT_WORDS_HINT = "EXACT WORDS MODE WORKS WITHOUT IT";
 export const SERVICE_MESSAGES = {
   connecting: "CONNECTING TO TRANSLATION SERVICE…",
   loading: "TRANSLATION SERVICE STARTING…",
-  unreachable: `TRANSLATION SERVICE NOT RUNNING — START IT WITH: python -m pipeline.gloss_server (OR npm run dev:live). ${EXACT_WORDS_HINT}`,
+  unreachable: `TRANSLATION SERVICE NOT RUNNING — START IT WITH: ${START_COMMANDS.server} (OR ${START_COMMANDS.devLive}). ${EXACT_WORDS_HINT}`,
   failed: `TRANSLATION SERVICE FAILED TO LOAD ITS MODEL — SEE ITS LOG. ${EXACT_WORDS_HINT}`,
 };
 

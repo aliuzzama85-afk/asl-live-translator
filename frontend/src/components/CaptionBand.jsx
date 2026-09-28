@@ -1,5 +1,6 @@
 import { useState } from "react";
 
+import { START_COMMANDS } from "../lib/glossClient.js";
 import styles from "./CaptionBand.module.css";
 
 /** Per `frontend/MULTIWORD_PLAN.md` Section 1: a security/sanity length
@@ -68,6 +69,33 @@ function SpelledLetters({ word }) {
       </span>
       <span className={styles.srOnly}>FINGERSPELLED: {word.text}</span>
     </>
+  );
+}
+
+/** Matches any start command, captured, so `split` keeps it as its own part. */
+const COMMAND_PATTERN = new RegExp(
+  `(${Object.values(START_COMMANDS)
+    .map((c) => c.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+    .join("|")})`
+);
+
+/**
+ * Renders banner text with each start command in a `<code>` element that
+ * keeps its real case. The banner itself is uppercased by CSS, and an
+ * uppercased `PYTHON -M PIPELINE.GLOSS_SERVER` can't be copy-pasted.
+ *
+ * @param {string} text
+ * @returns {Array<string|JSX.Element>}
+ */
+function withCommands(text) {
+  return text.split(COMMAND_PATTERN).map((part, i) =>
+    i % 2 === 1 ? (
+      <code key={i} className={styles.command}>
+        {part}
+      </code>
+    ) : (
+      part
+    )
   );
 }
 
@@ -327,13 +355,13 @@ export function CaptionBand({
 
       {live?.statusMessage ? (
         <div className={styles.liveNotice} role="status" aria-live="polite">
-          {live.statusMessage}
+          {withCommands(live.statusMessage)}
         </div>
       ) : null}
 
       {live?.errorMessage ? (
         <div className={styles.oovBanner} role="status" aria-live="polite">
-          {live.errorMessage}
+          {withCommands(live.errorMessage)}
         </div>
       ) : null}
 

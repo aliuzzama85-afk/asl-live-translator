@@ -4,6 +4,14 @@
  * Sections 3 and 6 for the contract and the error behavior.
  */
 
+/** The shell commands that start the gloss server, quoted in error banners.
+ * Banners are uppercased by CSS, but Python module names are case-sensitive,
+ * so the UI renders these in their real case (see `CaptionBand`). */
+export const START_COMMANDS = Object.freeze({
+  server: "python -m pipeline.gloss_server",
+  devLive: "npm run dev:live",
+});
+
 export const GLOSS_TIMEOUT_MS = 5000;
 export const HEALTH_TIMEOUT_MS = 5000;
 

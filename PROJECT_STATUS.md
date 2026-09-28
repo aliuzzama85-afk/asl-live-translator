@@ -1375,9 +1375,13 @@ more):
 - `frontend/MULTIWORD_PLAN.md`, `PLAN.md` and `RENDERING_UPGRADE_PLAN.md`
   fail `prettier --check` at HEAD too. Letting prettier rewrite them
   reflows tables and breaks one inline code span, so they were left alone.
-- The service banner's `text-transform: uppercase` shows the start command
+- ~~The service banner's `text-transform: uppercase` shows the start command
   as `PYTHON -M PIPELINE.GLOSS_SERVER`, which isn't copy-pasteable as
-  shown. This also affects the mic path.
+  shown.~~ **Fixed the same day** (commit "fix: show the gloss-server start
+  commands in their real case"): both commands (`START_COMMANDS` in
+  `glossClient.js`) now render in `<code>` with `text-transform: none`, on
+  the mic and typed paths alike, checked in a real browser with the server
+  stopped.
 - At 375px the 3D hand sometimes extends past the Stage frame while the
   soft-follow camera catches up (see Section 16's trade-offs).
 - On this Windows checkout (`core.autocrlf=true`), a `git stash`

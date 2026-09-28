@@ -315,3 +315,10 @@
 .glossLineText {
   color: var(--color-text-primary);
 }
+
+/* A shell command inside an (uppercased) banner: shown in its real case so
+ * it can be copy-pasted -- Python module names are case-sensitive. */
+.command {
+  text-transform: none;
+  font-family: var(--font-family-mono);
+}
