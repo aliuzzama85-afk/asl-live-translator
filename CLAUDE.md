@@ -21,7 +21,9 @@ as one).
    provider (which ship their own endpointing anyway).
    **Live bridge**: `pipeline/gloss_server.py` (stdlib HTTP, `127.0.0.1`) serves the
    gloss model to the browser through Vite's `/api` proxy. Run both with
-   `npm run dev:live` (in `frontend/`).
+   `npm run dev:live` (in `frontend/`). Typed English (TRANSLATE mode, the
+   default) goes through this same bridge and queue as speech; EXACT WORDS
+   mode looks typed words up literally, without the model.
 3. **Gloss translation**: fine-tuned T5-small, English → ASL gloss order. Lives in `gloss_model/`.
    Training data: ASLG-PC12 (Hugging Face Datasets).
 4. **Gloss-to-pose lookup**: MediaPipe-extracted keypoint sequences per gloss word, sourced
@@ -242,6 +244,28 @@ design decision, a gotcha), update this file before ending the session.
     `import.meta.env.DEV`.
   - **A real microphone test still needs a person** (see `PROJECT_STATUS.md`
     Section 15).
+- **Typed input has two modes (2026-09-28)**. Until then, typed words were
+  always looked up literally and never reached the gloss model, a gap in the
+  Stage 1-2 plan. Now:
+  - **TRANSLATE** (default): `useLiveMode.submitTyped` → the same
+    `waitForGlossService` gate → the same `queue.enqueueFinal` as speech, so
+    typed and spoken phrases share one queue. Don't build a second
+    translation path for typed text.
+  - **EXACT WORDS**: the literal lookup, for testing vocabulary. It's the
+    only path that calls `setSubmittedWords` directly.
+  - **Never fall back to literal signing** when the gloss service is down in
+    TRANSLATE mode. That would present untranslated output as a
+    translation. Show the service banner (it says EXACT WORDS works without
+    the service).
+  - App tests that type literal words must select EXACT WORDS first
+    (`searchExactWords` in `App.test.jsx`). The default mode now calls the
+    gloss client.
+  - Typed input exposes model-quality limits more often ("hello" → HALF,
+    "taxi" → TITTLE). The gloss line shows exactly what the model produced.
+    Words like "where" are fingerspelled because they aren't in the 118-word
+    library, which is a vocabulary limit.
+  - Full detail: `pipeline/STAGE1_2_PLAN.md` (last section),
+    `PROJECT_STATUS.md` Section 17.
 - **WebGL rendering can't be unit-tested here -- manual browser check
   required.** The Stage band renders a lit 3D hand with Three.js (WebGL2),
   falling back to the old 2D canvas when no WebGL2 context is available

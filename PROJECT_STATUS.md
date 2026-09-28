@@ -1,8 +1,11 @@
 # Project Status
 
-Last updated: 2026-09-28 (**the Stage band now renders a lit 3D hand**
-(Three.js), resolving the "A/O ambiguous in 2D" and "phantom static hand"
-limitations — see Section 16). 2026-09-26: **build-order step 4, live speech
+Last updated: 2026-09-28 (**typed English now goes through the gloss model**
+(TRANSLATE mode, the default), correcting a design gap that left typed input
+as a literal, untranslated lookup; the old behavior stays as EXACT WORDS —
+see Section 17. Earlier the same day: **the Stage band now renders a lit 3D
+hand** (Three.js), resolving the "A/O ambiguous in 2D" and "phantom static
+hand" limitations — see Section 16). 2026-09-26: **build-order step 4, live speech
 input (Stages 1-2), built and automated-tested; a real-microphone test by a
 person is still pending** — see Section 15. Earlier the same day: fingerspelling, **all 26 letters complete**, 24
 from the MIT-licensed `sid220/asl-now-fingerspelling` dataset and J and Z
@@ -1253,3 +1256,130 @@ All read clearly. The user reviewed and approved the result on
   tracking flicker (e.g. "angry → about"), a frame can briefly show no hand
   while the soft-follow camera catches up. The 2D fallback shows the same
   frame.
+
+---
+
+## 17. Typed input through the gloss model: TRANSLATE / EXACT WORDS — done (2026-09-28)
+
+**What was wrong, plainly:** Stage 1-2 (Section 15) wired only *speech* to
+the gloss model. Typed input kept Stage 5's literal lookup: each typed word
+went straight to the 118-word pose library. So "where is the car" was
+signed as W-H-E-R-E, I-S, T-H-E (fingerspelled) and then CAR, while saying
+the same sentence gave `WHERE BE CAR`. That was a design choice in
+`pipeline/STAGE1_2_PLAN.md` Section 5 ("typed input stays"), not a
+regression, and **this section corrects it**.
+
+**What changed** (commit `e4df8bf`; design and as-built detail in the last
+section of `pipeline/STAGE1_2_PLAN.md`):
+- **Two typed-input modes**, a two-button toggle beside the input with
+  `aria-pressed` (same style as PLAY/LOOP/MIC), in memory only:
+  - **TRANSLATE** (default) reuses the live path end to end.
+    `useLiveMode.submitTyped` goes through the same `waitForGlossService`
+    gate, then `queue.enqueueFinal` (sanitize, 12-word split), `/api/gloss`,
+    the queue and the unchanged playback. There is no second translation
+    path, and typed and spoken phrases share one queue in order.
+  - **EXACT WORDS** is the old literal lookup, unchanged, and never calls
+    the gloss client.
+- **Service down in TRANSLATE mode:** the mic path's banner appears (now
+  adding "EXACT WORDS MODE WORKS WITHOUT IT") and nothing is signed. It
+  never falls back to literal signing. Once the server has been seen ready,
+  a later "no answer" is reported at once instead of after the 15s startup
+  grace.
+- **Gloss line:** `GLOSS: WHERE BE BATHROOM · NOT SIGNED: BE`, from the
+  server's `gloss` and `dropped`. The queue now records `gloss`, `dropped`
+  and `source` on each entry.
+- **LOOP:** visibly disabled in TRANSLATE mode with its reason. It works as
+  before in EXACT WORDS.
+- **Latency readout:** `TEXT→SIGN` for typed phrases.
+
+**Found in the real-browser check and fixed before committing** (neither
+was visible in happy-dom tests):
+1. With a typed phrase queued behind another, the transcript and gloss
+   lines showed the *queued* phrase's gloss (`X-MY DOG BE DESC-SICK`) while
+   the avatar signed CAN HELP FIND PHONE. They now follow the phrase being
+   signed, with the waiting one shown as `NEXT: my dog is sick · QUEUED`.
+2. After switching to EXACT WORDS, the last translated phrase's transcript
+   and gloss stayed above the unrelated literal sequence. They're now
+   hidden while an EXACT WORDS sequence is loaded.
+3. At 375px wide, the (now default) LOOP reason was wider than the screen,
+   and the non-shrinking controls column pushed PLAY/LOOP/MIC off the
+   right edge. The column can now shrink, so the note wraps; checked at
+   375px with no horizontal overflow.
+
+**Manual verification** (real browser, `npm run dev:live`, the real
+`checkpoints_v2` model, "Model ready" after 6.8s). Screenshots were saved
+outside the repo, in the session scratchpad, and network requests were
+logged for each check:
+- **a. TRANSLATE "where is the bathroom":** gloss `WHERE BE BATHROOM`,
+  `NOT SIGNED: BE`. WHERE was fingerspelled (dataset letters) and BATHROOM
+  signed (WLASL). Only `where.json` (404) and `bathroom.json` were
+  requested; "is" and "the" were never looked up. TEXT→SIGN was 204-234ms
+  in the in-app browser and 778ms on the first submit of a fresh headless
+  Edge page.
+- **b. TRANSLATE "where is the car":** gloss `WHERE BE CAR`,
+  `NOT SIGNED: BE`. W-H-E-R-E was fingerspelled, then CAR signed
+  (`wlasl:aslbrick:69258`); "is" and "the" were not signed. This matches
+  the prediction exactly.
+- **c.** "can you help me find my phone" glossed to `CAN X-YOU HELP X-I FIND
+  X-MY PHONE`. CAN, HELP, FIND and PHONE were all signed (PHONE with its
+  existing low-confidence banner), and X-YOU, X-I and X-MY dropped. "my
+  dog is sick" glossed to `X-MY DOG BE DESC-SICK`: D-O-G fingerspelled,
+  SICK signed. Submitted back to back, the second queued (`SIGNING — 1
+  PHRASE QUEUED`) and started only after the first finished; its TEXT→SIGN
+  of ~7.9s includes that wait.
+- **d. EXACT WORDS "where is the car":** the old literal behavior. W-H-E-R-E,
+  I-S and T-H-E were fingerspelled, CAR signed, `is.json` and `the.json`
+  requested, and no `/api/` request. LOOP was enabled; the readout said
+  FETCH.
+- **e. Gloss server stopped** (`npm run dev` alone), TRANSLATE "where is the
+  car": `CONNECTING TO TRANSLATION SERVICE…` for the 15s grace, then ERROR
+  and the banner `TRANSLATION SERVICE NOT RUNNING — … EXACT WORDS MODE WORKS
+  WITHOUT IT`. The only requests were `/api/health`; there was no
+  `/api/gloss` and no `/poses/` lookup, so nothing was signed.
+- **Phone width (375px):** check (a) again, and it fits with no overflow.
+
+**Tests:** frontend **170/170** (161 before, +9). The existing typed-input
+App tests now select EXACT WORDS explicitly, with unchanged assertions. New
+tests cover:
+- TRANSLATE through the real playback path (only the model's words are
+  fetched);
+- EXACT WORDS never calling the gloss client;
+- the service-down banner, with nothing signed;
+- the no-grace report after the server was seen ready;
+- LOOP disabled with its reason;
+- toggle accessibility;
+- EXACT WORDS locked while a translated phrase plays, then no stale gloss
+  line;
+- typed and spoken phrases sharing the queue in order;
+- the queue's new entry fields.
+
+Two deliberate mutations were each caught: removing the not-ready guard
+(2 tests fail), and bypassing TRANSLATE to the literal path (5 fail).
+Python **203/203** (unchanged). `eslint`, `prettier` (code), `ruff`,
+`black` and `gitleaks` are clean. No new dependencies.
+
+**Known limits** (none of these are new, but typed input exposes them
+more):
+- **Model quality.** "hello" glosses to `HALF` and "taxi" to `TITTLE`.
+  People type anything, so these will show up more often than they did
+  with the handful of tested spoken phrases. The gloss line makes them
+  visible instead of hiding them.
+- **Vocabulary.** "where" and similar words are fingerspelled because
+  they aren't among the 118 WLASL words in the pose library. That's a
+  vocabulary limit, separate from this change.
+- **Long pastes.** A typed paragraph over ~36 words becomes 4+ phrases.
+  The queue's 3-phrase backlog then drops the oldest waiting phrase, with
+  the visible "FELL BEHIND" notice.
+
+**Noticed, not changed** (pre-existing, out of scope):
+- `frontend/MULTIWORD_PLAN.md`, `PLAN.md` and `RENDERING_UPGRADE_PLAN.md`
+  fail `prettier --check` at HEAD too. Letting prettier rewrite them
+  reflows tables and breaks one inline code span, so they were left alone.
+- The service banner's `text-transform: uppercase` shows the start command
+  as `PYTHON -M PIPELINE.GLOSS_SERVER`, which isn't copy-pasteable as
+  shown. This also affects the mic path.
+- At 375px the 3D hand sometimes extends past the Stage frame while the
+  soft-follow camera catches up (see Section 16's trade-offs).
+- On this Windows checkout (`core.autocrlf=true`), a `git stash`
+  round-trip rewrites working files with CRLF, which makes prettier fail
+  locally even though committed content is LF.

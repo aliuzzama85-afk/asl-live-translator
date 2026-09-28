@@ -427,7 +427,10 @@ it rather than adding a new band:
   The user turns it back on, rather than the app flipping it back unasked.
 - **Typed input stays**: the search box still works. While the mic is on it's
   disabled, with the placeholder "Mic is on — turn it off to type", so the two
-  inputs never compete for the same queue.
+  inputs never compete for the same queue. **Superseded 2026-09-28**: this
+  plan left typed input as a literal, untranslated lookup, which was a design
+  gap. Typed English now goes through the gloss model too; see "Typed input:
+  TRANSLATE and EXACT WORDS" at the end of this document.
 - **Never frozen**: at every moment exactly one of these is showing:
   listening (and what's being heard), translating, signing, an error with
   its reason, or the idle prompt.
@@ -623,3 +626,80 @@ Built as planned, with these differences, each recorded in
 - **Typing is disabled** while live phrases are still playing after the mic
   goes off, not only while the mic is on (the queue owns `submittedWords`
   until it drains).
+
+---
+
+## Typed input: TRANSLATE and EXACT WORDS (2026-09-28)
+
+**This corrects an earlier design choice.** Section 5 kept the search box
+exactly as Stage 5 built it: each typed word was looked up literally in the
+118-word pose library, and only speech went through `/api/gloss`. So typing
+"where is the car" fingerspelled W-H-E-R-E, I-S and T-H-E before signing
+CAR, while saying the same sentence gave `WHERE BE CAR` and signed only
+WHERE (spelled) and CAR. That was a gap in this plan, not a regression.
+Implemented in `e4df8bf`.
+
+**Two modes**, chosen with a two-button toggle beside the input (`TRANSLATE`
+/ `EXACT WORDS`, each with `aria-pressed`, the same `controlButton` style as
+PLAY/LOOP/MIC). The default is TRANSLATE. The choice is kept in memory only,
+so a reload goes back to TRANSLATE.
+
+- **TRANSLATE**: typed English goes through the *same* modules as speech,
+  with no second translation path. `useLiveMode.submitTyped(text)` waits on
+  the same `waitForGlossService` health gate the mic uses (so it also waits
+  out `loading` while the model loads), then calls the same
+  `queue.enqueueFinal`. That applies `phrases.js`'s sanitizing and 12-word
+  split, then `glossClient` → `/api/gloss` (server-side token normalization,
+  500-character cap) → `useLivePhraseQueue` → playback. One submit is one
+  final phrase; typed input has no interim results. Typed and spoken
+  phrases share one queue, in the order they arrive. The label reads
+  `ENGLISH`, the placeholder "Type English, e.g. where is the bathroom", and
+  the submit button `SIGN`.
+- **EXACT WORDS**: the old behavior, unchanged. Each typed word is looked up
+  literally (20-word cap, `MULTIWORD_PLAN.md` Section 1), and the gloss
+  client is never called. It's for testing exact vocabulary. The label
+  reads `SIGN WORDS`, the placeholder "Type sign words, e.g. about angry",
+  and the submit button `LOOKUP`.
+
+**Service down in TRANSLATE mode**: the same banner as the mic path, which
+now ends "EXACT WORDS MODE WORKS WITHOUT IT". Nothing is signed. It never
+silently falls back to literal signing, because that would present
+untranslated output as a translation. The first check after page load
+still gets the 15s "no answer" startup grace. Once the server has been seen
+ready, a later "no answer" means it was stopped, so it's reported at once
+(`graceMs: 0`).
+
+**What the model produced is shown**: a gloss line under the transcript,
+e.g. `GLOSS: WHERE BE BATHROOM · NOT SIGNED: BE`, listing the server's
+`dropped` tokens (pronoun markers, stop-list words). The transcript and
+gloss lines follow the phrase *being signed*; a newer waiting phrase shows
+after it as `NEXT: …`. Both lines are hidden while an EXACT WORDS sequence
+is loaded, since that isn't a queued phrase.
+
+**LOOP** is visibly disabled in TRANSLATE mode ("LOOP IS OFF IN TRANSLATE
+MODE — USE EXACT WORDS TO LOOP"), because the queue advances on `onEnded`
+and a looping phrase would block it. It works as before in EXACT WORDS.
+While the mic is on, the live-speech reason is shown instead.
+
+**Mic vs typing**: typing is disabled while the mic is on, as before. In
+EXACT WORDS it's also disabled while queued phrases are still playing ("LOOP
+IS OFF UNTIL QUEUED PHRASES FINISH"), since a literal lookup would replace
+the phrase being signed. In TRANSLATE mode a typed phrase simply joins the
+queue.
+
+**Latency readout**: `TEXT→SIGN` for a typed phrase, measured from submit to
+its first frame. It includes the health check and any time spent waiting
+behind the phrase being signed, the same as `SPEECH→SIGN`.
+
+**Known limits, stated plainly**:
+- Typed input will expose the gloss model's quality limits more often than
+  the tested phrases did, because people type whatever they like. Known
+  examples: "hello" glosses to `HALF`, and "taxi" to `TITTLE`. The gloss
+  line makes these visible rather than hiding them.
+- Words like "where" are fingerspelled because they aren't among the 118
+  WLASL words in the pose library. That's a vocabulary limit, separate from
+  this change.
+- A long typed paragraph shares the queue's 3-phrase backlog. Over ~36
+  words, it's split into 4+ phrases, and the oldest waiting one is dropped
+  with the visible "FELL BEHIND" notice. It isn't silently lost, but typed
+  input isn't a document reader.
